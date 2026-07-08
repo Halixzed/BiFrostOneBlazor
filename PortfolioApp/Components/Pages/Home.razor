@@ -1,0 +1,102 @@
+@page "/"
+@rendermode InteractiveServer
+@using BlazorThreeJS.Cameras
+@using BlazorThreeJS.Core
+@using BlazorThreeJS.Geometires
+@using BlazorThreeJS.Lights
+@using BlazorThreeJS.Materials
+@using BlazorThreeJS.Maths
+@using BlazorThreeJS.Objects
+@using BlazorThreeJS.Scenes
+@using BlazorThreeJS.Settings
+@using BlazorThreeJS.Viewers
+@using PortfolioApp.Models
+@using PortfolioApp.Services
+@implements IDisposable
+@inject UnitStore Store
+
+<PageTitle>Home</PageTitle>
+
+<div class="viewer-shell">
+    <a class="admin-link" href="admin" data-enhance-nav="false">Admin</a>
+    <Viewer @ref="_viewer"
+            ViewerSettings="_viewerSettings"
+            Scene="_scene"
+            Camera="_camera" />
+</div>
+
+@code {
+    private Viewer? _viewer;
+
+    private readonly ViewerSettings _viewerSettings = new()
+    {
+        ContainerId = "portfolio-viewer",
+    };
+
+    private readonly Scene _scene = new()
+    {
+        BackGroundColor = "#11151c",
+    };
+
+    private readonly PerspectiveCamera _camera = new(fov: 60, near: 0.1, far: 1000)
+    {
+        Position = new Vector3(6, 6, 10),
+        LookAt = new Vector3(0, 0, 0),
+    };
+
+    protected override void OnInitialized()
+    {
+        BuildScene();
+        Store.Changed += OnUnitsChanged;
+    }
+
+    private async void OnUnitsChanged()
+    {
+        BuildScene();
+        await InvokeAsync(async () =>
+        {
+            if (_viewer is not null)
+            {
+                // UpdateScene() only pushes additions to the live three.js scene, so the
+                // JS-side scene must be cleared first or removed units keep rendering.
+                await _viewer.ClearSceneAsync();
+                await _viewer.UpdateScene();
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private void BuildScene()
+    {
+        _scene.Children.Clear();
+        _scene.Add(new AmbientLight { Color = "#ffffff", Intensity = 0.6 });
+        _scene.Add(new PointLight { Color = "#ffffff", Intensity = 1.2, Position = new Vector3(8, 10, 8) });
+
+        foreach (var unit in Store.GetAll())
+        {
+            _scene.Add(new Mesh
+            {
+                Name = unit.Name,
+                Geometry = CreateGeometry(unit.Shape),
+                Material = new MeshStandardMaterial { Color = unit.Color },
+                Position = unit.Position,
+                Rotation = new Euler(unit.Rotation.X, unit.Rotation.Y, unit.Rotation.Z),
+                Scale = new Vector3(unit.Scale, unit.Scale, unit.Scale),
+            });
+        }
+    }
+
+    private static BufferGeometry CreateGeometry(UnitShape shape) => shape switch
+    {
+        UnitShape.Sphere => new SphereGeometry { Radius = 1 },
+        UnitShape.Cone => new ConeGeometry { Radius = 1, Height = 1.6 },
+        UnitShape.Torus => new TorusGeometry { Radius = 1, Tube = 0.35 },
+        _ => new BoxGeometry { Width = 1.4, Height = 1.4, Depth = 1.4 },
+    };
+
+    public void Dispose()
+    {
+        Store.Changed -= OnUnitsChanged;
+    }
+}

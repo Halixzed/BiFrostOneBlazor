@@ -1,0 +1,146 @@
+@page "/admin"
+@rendermode InteractiveServer
+@using BlazorThreeJS.Maths
+@using PortfolioApp.Models
+@using PortfolioApp.Services
+@implements IDisposable
+@inject UnitStore Store
+
+<PageTitle>Unit Admin</PageTitle>
+
+<div class="admin-shell">
+    <div class="admin-header">
+        <h1>Units</h1>
+        <a href="/" data-enhance-nav="false">&larr; Back to viewer</a>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Shape</th>
+                <th>Color</th>
+                <th>Position</th>
+                <th>Scale</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var unit in Store.GetAll())
+            {
+                <tr>
+                    <td>@unit.Name</td>
+                    <td>@unit.Shape</td>
+                    <td>
+                        <span class="color-swatch" style="background-color:@unit.Color"></span>
+                        @unit.Color
+                    </td>
+                    <td>@unit.Position.X, @unit.Position.Y, @unit.Position.Z</td>
+                    <td>@unit.Scale</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => StartEdit(unit)">Edit</button>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => Store.Delete(unit.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <button class="btn btn-primary" @onclick="StartAdd">Add Unit</button>
+
+    @if (_editing is not null)
+    {
+        <EditForm Model="_editing" OnSubmit="Save" class="edit-form">
+            <div class="mb-2">
+                <label for="unit-name">Name</label>
+                <input id="unit-name" class="form-control" @bind="_editing.Name" />
+            </div>
+            <div class="mb-2">
+                <label for="unit-shape">Shape</label>
+                <select id="unit-shape" class="form-select" @bind="_editing.Shape">
+                    @foreach (var shape in Enum.GetValues<UnitShape>())
+                    {
+                        <option value="@shape">@shape</option>
+                    }
+                </select>
+            </div>
+            <div class="mb-2">
+                <label for="unit-color">Color</label>
+                <input id="unit-color" class="form-control form-control-color" type="color" @bind="_editing.Color" />
+            </div>
+            <div class="mb-2">
+                <label id="unit-position-label">Position (x, y, z)</label>
+                <div class="d-flex gap-2" aria-labelledby="unit-position-label">
+                    <input id="unit-position-x" class="form-control" type="number" step="0.1" @bind="_editing.Position.X" />
+                    <input id="unit-position-y" class="form-control" type="number" step="0.1" @bind="_editing.Position.Y" />
+                    <input id="unit-position-z" class="form-control" type="number" step="0.1" @bind="_editing.Position.Z" />
+                </div>
+            </div>
+            <div class="mb-2">
+                <label for="unit-scale">Scale</label>
+                <input id="unit-scale" class="form-control" type="number" step="0.1" min="0.1" @bind="_editing.Scale" />
+            </div>
+            <button type="submit" class="btn btn-success">Save</button>
+            <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private Unit? _editing;
+    private bool _isNew;
+
+    protected override void OnInitialized()
+    {
+        Store.Changed += OnUnitsChanged;
+    }
+
+    private void OnUnitsChanged() => InvokeAsync(StateHasChanged);
+
+    private void StartAdd()
+    {
+        _editing = new Unit { Name = "new-unit" };
+        _isNew = true;
+    }
+
+    private void StartEdit(Unit unit)
+    {
+        _editing = new Unit
+        {
+            Id = unit.Id,
+            Name = unit.Name,
+            Shape = unit.Shape,
+            Position = new Vector3(unit.Position.X, unit.Position.Y, unit.Position.Z),
+            Rotation = new Vector3(unit.Rotation.X, unit.Rotation.Y, unit.Rotation.Z),
+            Scale = unit.Scale,
+            Color = unit.Color,
+        };
+        _isNew = false;
+    }
+
+    private void Save()
+    {
+        if (_editing is null)
+        {
+            return;
+        }
+
+        if (_isNew)
+        {
+            Store.Add(_editing);
+        }
+        else
+        {
+            Store.Update(_editing);
+        }
+
+        _editing = null;
+    }
+
+    private void CancelEdit() => _editing = null;
+
+    public void Dispose()
+    {
+        Store.Changed -= OnUnitsChanged;
+    }
+}

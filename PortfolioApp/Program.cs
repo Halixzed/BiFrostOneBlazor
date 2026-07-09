@@ -22,6 +22,22 @@ app.UseHttpsRedirection();
 
 app.UseAntiforgery();
 
+// The BlazorThreeJS Viewer component injects its own <script src="_content/BlazorThreeJS/dist/app-lib.js">
+// client-side regardless of what's referenced in App.razor. That bundle unconditionally renders a
+// room/grid around the scene with no way to disable it via the public API, so intercept the request
+// and serve our locally patched copy (wwwroot/lib/blazor-three-js/app-lib.js, addRoom() neutered) instead.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/_content/BlazorThreeJS/dist/app-lib.js")
+    {
+        context.Response.ContentType = "text/javascript";
+        await context.Response.SendFileAsync(Path.Combine(app.Environment.WebRootPath, "lib", "blazor-three-js", "app-lib.js"));
+        return;
+    }
+
+    await next();
+});
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

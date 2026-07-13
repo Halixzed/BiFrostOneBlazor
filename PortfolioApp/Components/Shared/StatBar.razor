@@ -1,0 +1,25 @@
+<div class="stat-bar">
+    <span class="stat-bar-label">@Label</span>
+    <div class="stat-bar-cells">
+        @for (var i = 0; i < Max; i++)
+        {
+            var filled = i < Value;
+            <span class="stat-bar-cell @(filled ? "filled" : "")"></span>
+        }
+    </div>
+    <span class="stat-bar-value">@Value@Suffix</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = "";
+
+    [Parameter]
+    public int Value { get; set; }
+
+    [Parameter]
+    public int Max { get; set; } = 5;
+
+    [Parameter]
+    public string Suffix { get; set; } = "";
+}

@@ -1,64 +1,112 @@
 using BlazorThreeJS.Maths;
+using Microsoft.EntityFrameworkCore;
+using PortfolioApp.Data;
 using PortfolioApp.Models;
 
 namespace PortfolioApp.Services;
 
 public class UnitStore
 {
-    private readonly List<Unit> _units;
-    private int _nextId;
+    private readonly IDbContextFactory<PortfolioDbContext> _contextFactory;
 
-    public UnitStore()
+    public UnitStore(IDbContextFactory<PortfolioDbContext> contextFactory)
     {
-        _units =
-        [
-            new Unit { Name = "core", Shape = UnitShape.Box, Position = new Vector3(0, 0, 0), Color = "#4f9dff" },
-            new Unit { Name = "orbiter-1", Shape = UnitShape.Sphere, Position = new Vector3(4, 1, 0), Scale = 0.6, Color = "#ff6b6b" },
-            new Unit { Name = "orbiter-2", Shape = UnitShape.Cone, Position = new Vector3(-4, 0.5, 2), Scale = 0.8, Color = "#ffd166" },
-            new Unit { Name = "orbiter-3", Shape = UnitShape.Torus, Position = new Vector3(0, 1, -4), Scale = 0.8, Color = "#06d6a0" },
-        ];
+        _contextFactory = contextFactory;
 
-        foreach (var unit in _units)
+        using var context = _contextFactory.CreateDbContext();
+        context.Database.Migrate();
+
+        if (!context.Units.Any())
         {
-            unit.Id = ++_nextId;
+            context.Units.AddRange(
+                new Unit { Name = "core", IsActive = true },
+                new Unit { Name = "orbiter-1" },
+                new Unit { Name = "orbiter-2" },
+                new Unit { Name = "orbiter-3" });
+            context.SaveChanges();
         }
     }
 
     public event Action? Changed;
 
-    public IReadOnlyList<Unit> GetAll() => _units;
+    public IReadOnlyList<Unit> GetAll()
+    {
+        using var context = _contextFactory.CreateDbContext();
+        return context.Units.AsNoTracking().OrderBy(u => u.Id).ToList();
+    }
 
-    public Unit? GetById(int id) => _units.FirstOrDefault(u => u.Id == id);
+    public Unit? GetById(int id)
+    {
+        using var context = _contextFactory.CreateDbContext();
+        return context.Units.AsNoTracking().FirstOrDefault(u => u.Id == id);
+    }
 
     public Unit Add(Unit unit)
     {
-        unit.Id = ++_nextId;
-        _units.Add(unit);
+        using var context = _contextFactory.CreateDbContext();
+        context.Units.Add(unit);
+        context.SaveChanges();
         Changed?.Invoke();
         return unit;
     }
 
     public bool Update(Unit unit)
     {
-        var index = _units.FindIndex(u => u.Id == unit.Id);
-        if (index < 0)
+        using var context = _contextFactory.CreateDbContext();
+        var existing = context.Units.FirstOrDefault(u => u.Id == unit.Id);
+        if (existing is null)
         {
             return false;
         }
 
-        _units[index] = unit;
+        existing.Name = unit.Name;
+        existing.Rotation = new Vector3(unit.Rotation.X, unit.Rotation.Y, unit.Rotation.Z);
+        existing.ModelUrl = unit.ModelUrl;
+        existing.ModelFileName = unit.ModelFileName;
+        existing.PdfUrl = unit.PdfUrl;
+        existing.PdfFileName = unit.PdfFileName;
+        existing.Zones = unit.Zones;
+        existing.WidthPerZone = unit.WidthPerZone;
+        existing.Height = unit.Height;
+        existing.AveragePowerUsage = unit.AveragePowerUsage;
+        existing.WarrantyYears = unit.WarrantyYears;
+
+        context.SaveChanges();
+        Changed?.Invoke();
+        return true;
+    }
+
+    public bool SetActive(int id)
+    {
+        using var context = _contextFactory.CreateDbContext();
+        var units = context.Units.ToList();
+        if (!units.Any(u => u.Id == id))
+        {
+            return false;
+        }
+
+        foreach (var unit in units)
+        {
+            unit.IsActive = unit.Id == id;
+        }
+
+        context.SaveChanges();
         Changed?.Invoke();
         return true;
     }
 
     public bool Delete(int id)
     {
-        var removed = _units.RemoveAll(u => u.Id == id) > 0;
-        if (removed)
+        using var context = _contextFactory.CreateDbContext();
+        var existing = context.Units.FirstOrDefault(u => u.Id == id);
+        if (existing is null)
         {
-            Changed?.Invoke();
+            return false;
         }
 
-        return removed;
+        context.Units.Remove(existing);
+        context.SaveChanges();
+        Changed?.Invoke();
+        return true;
     }
 }

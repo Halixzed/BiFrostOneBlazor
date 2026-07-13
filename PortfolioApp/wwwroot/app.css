@@ -1,5 +1,13 @@
+@font-face {
+    font-family: 'Inter';
+    src: url('fonts/inter-latin-wght-normal.woff2') format('woff2-variations'), url('fonts/inter-latin-wght-normal.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
 html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
 a, .btn-link {
@@ -21,6 +29,9 @@ a, .btn-link {
     width: 100vw;
     height: 100vh;
     overflow: hidden;
+    /* Actual color set inline from AppSettingsStore (admin-configurable) - this shows behind
+       the WebGL canvas, which is now rendered transparent (see the app-lib.js patch notes in
+       Program.cs), so it's also what a background watermark is composited over. */
 }
 
 .viewer-shell canvas {
@@ -28,17 +39,63 @@ a, .btn-link {
     height: 100% !important;
 }
 
+/* BlazorThreeJS's Viewer renders its own container div (class "viewer3dContainer") with no
+   explicit height, so its JS sizing logic falls back to half the container width instead of
+   filling the shell - give it a real height to measure against. Also given an explicit stacking
+   context above .watermark-bg so the (transparent) canvas paints over it rather than under it. */
+.viewer-shell .viewer3dContainer {
+    width: 100%;
+    height: 100%;
+}
+
+/* Wraps the Viewer component so the model can fade in on load/unit-switch - the canvas itself
+   can't easily be faded per-mesh, but fading this whole wrapper reads the same way since only
+   the model (not the watermark or card overlay, which live outside it) is inside it. Also
+   carries the z-index that used to sit on .viewer3dContainer, since opacity here creates its own
+   stacking context. */
+.model-fade {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 1.2s ease;
+}
+
+.model-fade.visible {
+    opacity: 1;
+}
+
+.watermark-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    width: 70%;
+    height: 70%;
+    margin: auto;
+    object-fit: contain;
+    opacity: 0.12;
+    pointer-events: none;
+}
+
+.watermark-bg.grayscale {
+    filter: grayscale(100%);
+}
+
 .admin-link {
     position: absolute;
     top: 1rem;
     right: 1rem;
     z-index: 10;
-    padding: 0.5rem 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.1);
     color: #fff;
     text-decoration: none;
-    font-size: 0.9rem;
     backdrop-filter: blur(4px);
 }
 

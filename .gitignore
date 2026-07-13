@@ -12,3 +12,6 @@ obj/
 
 ## Logs
 *.log
+
+## App data (SQLite db, user-uploaded files such as the watermark logo)
+PortfolioApp/App_Data/

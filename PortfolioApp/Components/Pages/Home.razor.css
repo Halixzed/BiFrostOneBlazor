@@ -1,0 +1,116 @@
+.viewer-vignette {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    background: linear-gradient(to bottom,
+        rgba(0, 0, 0, 0.55) 0%,
+        rgba(0, 0, 0, 0) 18%,
+        rgba(0, 0, 0, 0) 82%,
+        rgba(0, 0, 0, 0.55) 100%);
+}
+
+.no-model-message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 8;
+    transform: translate(-50%, -50%);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 1.1rem;
+    text-align: center;
+    pointer-events: none;
+}
+
+.unit-card {
+    position: absolute;
+    left: 1rem;
+    bottom: 1rem;
+    z-index: 10;
+    min-width: 280px;
+    padding: 1rem 1.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: #333333;
+    backdrop-filter: blur(6px);
+    color: #fff;
+}
+
+.unit-card-stats {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.unit-card h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+}
+
+.unit-card-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    opacity: 0.85;
+}
+
+.learn-more-btn {
+    position: absolute;
+    left: 50%;
+    bottom: 1.5rem;
+    z-index: 10;
+    transform: translateX(-50%);
+    padding: 0.6rem 1.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 999px;
+    background: rgba(51, 51, 51, 0.85);
+    backdrop-filter: blur(6px);
+    color: #fff;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+.learn-more-btn:hover {
+    background: rgba(79, 157, 255, 0.35);
+    border-color: #4f9dff;
+}
+
+.pdf-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pdf-overlay-frame {
+    width: 90%;
+    height: 90%;
+    border: none;
+    border-radius: 0.5rem;
+    background: #fff;
+}
+
+.pdf-overlay-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 21;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 999px;
+    background: rgba(51, 51, 51, 0.85);
+    color: #fff;
+    cursor: pointer;
+}
+
+.pdf-overlay-close:hover {
+    background: rgba(220, 53, 69, 0.5);
+    border-color: #dc3545;
+}

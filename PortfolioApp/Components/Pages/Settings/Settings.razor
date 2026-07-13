@@ -1,0 +1,625 @@
+@page "/settings"
+@rendermode InteractiveServer
+@using BlazorThreeJS.Maths
+@using PortfolioApp.Models
+@using PortfolioApp.Services
+@implements IDisposable
+@inject UnitStore Store
+@inject WatermarkStore WatermarkStore
+@inject ModelFileStore ModelFileStore
+@inject AppSettingsStore AppSettingsStore
+@inject EnvironmentMapStore EnvironmentMapStore
+@inject PdfFileStore PdfFileStore
+
+<PageTitle>Settings</PageTitle>
+
+<div class="settings-shell">
+    <div class="settings-header">
+        <h1>Add / Remove Model Units</h1>
+        <a class="icon-btn icon-btn-primary" href="/" data-enhance-nav="false" title="Back to viewer" aria-label="Back to viewer">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8" />
+            </svg>
+        </a>
+    </div>
+
+    <div class="table-toolbar">
+        <button class="icon-btn icon-btn-add" title="Add unit" aria-label="Add unit" @onclick="StartAdd">
+            <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2" />
+            </svg>
+        </button>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>On screen</th>
+                <th>Name</th>
+                <th>Model file</th>
+                <th>Zones</th>
+                <th>Width/zone</th>
+                <th>Height</th>
+                <th>Avg. power</th>
+                <th>Warranty</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var unit in Store.GetAll())
+            {
+                <tr>
+                    <td>
+                        <input type="checkbox" checked="@unit.IsActive" @onchange="() => Store.SetActive(unit.Id)" />
+                    </td>
+                    <td>@unit.Name</td>
+                    <td>@(string.IsNullOrWhiteSpace(unit.ModelUrl) ? "-" : unit.ModelFileName ?? "model.glb")</td>
+                    <td>@unit.Zones</td>
+                    <td>@unit.WidthPerZone m</td>
+                    <td>@unit.Height m</td>
+                    <td>@unit.AveragePowerUsage kWh</td>
+                    <td>@unit.WarrantyYears years</td>
+                    <td class="text-end">
+                        <button class="icon-btn icon-btn-primary" title="Edit" aria-label="Edit" @onclick="() => StartEdit(unit)">
+                            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                <path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708zm.646 6.061L9.5 2.207 1.171 10.536a1.5 1.5 0 0 0-.397.716l-.83 3.108a.5.5 0 0 0 .61.61l3.109-.83a1.5 1.5 0 0 0 .716-.397zm-9.5 8.98L8 10.5 5.5 8l-4.146 4.146a.5.5 0 0 0-.146.354z" />
+                            </svg>
+                        </button>
+                        <button class="icon-btn icon-btn-danger" title="Delete" aria-label="Delete" @onclick="() => DeleteUnit(unit)">
+                            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                <path d="M5.5 5.5a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm2.5 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm3 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0z" />
+                                <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z" />
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (_editing is not null)
+    {
+        <EditForm Model="_editing" OnSubmit="Save" class="edit-form">
+            <div class="mb-2">
+                <label for="unit-name">Name</label>
+                <input id="unit-name" class="form-control" @bind="_editing.Name" />
+            </div>
+            <div class="mb-2">
+                <label>Model file (.glb / .gltf)</label>
+                @if (!string.IsNullOrWhiteSpace(_editing.ModelUrl))
+                {
+                    <div class="model-file-current">
+                        <span>@(_editing.ModelFileName ?? "model.glb")</span>
+                        <label class="icon-btn icon-btn-primary" title="Replace" aria-label="Replace">
+                            <InputFile OnChange="OnModelFileSelected" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" hidden />
+                            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                <path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708zm.646 6.061L9.5 2.207 1.171 10.536a1.5 1.5 0 0 0-.397.716l-.83 3.108a.5.5 0 0 0 .61.61l3.109-.83a1.5 1.5 0 0 0 .716-.397zm-9.5 8.98L8 10.5 5.5 8l-4.146 4.146a.5.5 0 0 0-.146.354z" />
+                            </svg>
+                        </label>
+                        <button type="button" class="icon-btn icon-btn-danger" title="Remove" aria-label="Remove" @onclick="RemoveModelFile">
+                            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                <path d="M5.5 5.5a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm2.5 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm3 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0z" />
+                                <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z" />
+                            </svg>
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <label class="model-file-upload">
+                        <InputFile OnChange="OnModelFileSelected" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" hidden />
+                        <span>Upload a .glb or .gltf file</span>
+                    </label>
+                }
+                @if (_modelFileError is not null)
+                {
+                    <p class="text-danger">@_modelFileError</p>
+                }
+            </div>
+            <div class="mb-2">
+                <label>"Learn More" PDF</label>
+                @if (!string.IsNullOrWhiteSpace(_editing.PdfUrl))
+                {
+                    <div class="model-file-current">
+                        <span>@(_editing.PdfFileName ?? "document.pdf")</span>
+                        <label class="icon-btn icon-btn-primary" title="Replace" aria-label="Replace">
+                            <InputFile OnChange="OnPdfFileSelected" accept=".pdf,application/pdf" hidden />
+                            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                <path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708zm.646 6.061L9.5 2.207 1.171 10.536a1.5 1.5 0 0 0-.397.716l-.83 3.108a.5.5 0 0 0 .61.61l3.109-.83a1.5 1.5 0 0 0 .716-.397zm-9.5 8.98L8 10.5 5.5 8l-4.146 4.146a.5.5 0 0 0-.146.354z" />
+                            </svg>
+                        </label>
+                        <button type="button" class="icon-btn icon-btn-danger" title="Remove" aria-label="Remove" @onclick="RemovePdfFile">
+                            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                <path d="M5.5 5.5a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm2.5 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm3 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0z" />
+                                <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z" />
+                            </svg>
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <label class="model-file-upload">
+                        <InputFile OnChange="OnPdfFileSelected" accept=".pdf,application/pdf" hidden />
+                        <span>Upload a PDF for the "Learn More" button</span>
+                    </label>
+                }
+                @if (_pdfFileError is not null)
+                {
+                    <p class="text-danger">@_pdfFileError</p>
+                }
+            </div>
+            <div class="mb-2">
+                <label for="unit-zones">Zones</label>
+                <input id="unit-zones" class="form-control" type="number" step="1" min="0" @bind="_editing.Zones" />
+            </div>
+            <div class="mb-2">
+                <label for="unit-width-per-zone">Width per zone (m)</label>
+                <input id="unit-width-per-zone" class="form-control" type="number" step="1" min="0" @bind="_editing.WidthPerZone" />
+            </div>
+            <div class="mb-2">
+                <label for="unit-height">Height (m)</label>
+                <input id="unit-height" class="form-control" type="number" step="1" min="0" @bind="_editing.Height" />
+            </div>
+            <div class="mb-2">
+                <label for="unit-power">Average power usage (kWh)</label>
+                <input id="unit-power" class="form-control" type="number" step="1" min="0" @bind="_editing.AveragePowerUsage" />
+            </div>
+            <div class="mb-2">
+                <label for="unit-warranty">Warranty life (years)</label>
+                <input id="unit-warranty" class="form-control" type="number" step="1" min="0" @bind="_editing.WarrantyYears" />
+            </div>
+            <button type="submit" class="btn btn-success">Save</button>
+            <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
+        </EditForm>
+    }
+
+    <div class="watermark-section">
+        <h1>Background Watermark</h1>
+
+        @if (_watermark is not null)
+        {
+            <div class="watermark-preview">
+                <img class="@(_watermark.Grayscale ? "grayscale" : "")" src="@WatermarkStore.Url(_watermark)" alt="@_watermark.OriginalFileName" />
+                <div class="watermark-preview-info">
+                    <span>@_watermark.OriginalFileName</span>
+                    <label class="watermark-grayscale-toggle">
+                        <input type="checkbox" checked="@_watermark.Grayscale" @onchange="OnGrayscaleToggled" />
+                        Grayscale
+                    </label>
+                    <div class="watermark-preview-actions">
+                        <label class="icon-btn icon-btn-primary" title="Replace" aria-label="Replace">
+                            <InputFile OnChange="OnWatermarkFileSelected" accept=".png,.svg,image/png,image/svg+xml" hidden />
+                            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                <path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708zm.646 6.061L9.5 2.207 1.171 10.536a1.5 1.5 0 0 0-.397.716l-.83 3.108a.5.5 0 0 0 .61.61l3.109-.83a1.5 1.5 0 0 0 .716-.397zm-9.5 8.98L8 10.5 5.5 8l-4.146 4.146a.5.5 0 0 0-.146.354z" />
+                            </svg>
+                        </label>
+                        <button class="icon-btn icon-btn-danger" title="Delete" aria-label="Delete" @onclick="DeleteWatermark">
+                            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                <path d="M5.5 5.5a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm2.5 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm3 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0z" />
+                                <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <label class="watermark-upload">
+                <InputFile OnChange="OnWatermarkFileSelected" accept=".png,.svg,image/png,image/svg+xml" hidden />
+                <span>Upload a logo (PNG or SVG) to display as a faded background watermark on the viewer.</span>
+            </label>
+        }
+
+        @if (_watermarkError is not null)
+        {
+            <p class="text-danger">@_watermarkError</p>
+        }
+    </div>
+
+    <div class="watermark-section">
+        <h1>Background Color</h1>
+        <label class="background-color-picker">
+            <input type="color" value="@_appSettings.BackgroundColor" @onchange="OnBackgroundColorChanged" />
+            <span>@_appSettings.BackgroundColor</span>
+        </label>
+    </div>
+
+    <div class="watermark-section">
+        <h1>Environment Map (HDRI)</h1>
+        <p class="environment-map-hint">
+            Adds image-based ambient/reflection lighting from an uploaded equirectangular JPG/PNG
+            on top of the built-in studio lights (doesn't replace them). Not a true HDR pipeline
+            (no .hdr/.exr support, no roughness-based reflection blur), but real image-based
+            lighting rather than a flat gradient.
+        </p>
+
+        @if (_environmentMap is not null)
+        {
+            <div class="watermark-preview">
+                <img src="@EnvironmentMapStore.Url(_environmentMap)" alt="@_environmentMap.OriginalFileName" />
+                <div class="watermark-preview-info">
+                    <span>@_environmentMap.OriginalFileName</span>
+                    <div class="watermark-preview-actions">
+                        <label class="icon-btn icon-btn-primary" title="Replace" aria-label="Replace">
+                            <InputFile OnChange="OnEnvironmentMapFileSelected" accept=".jpg,.jpeg,.png,image/jpeg,image/png" hidden />
+                            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                <path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708zm.646 6.061L9.5 2.207 1.171 10.536a1.5 1.5 0 0 0-.397.716l-.83 3.108a.5.5 0 0 0 .61.61l3.109-.83a1.5 1.5 0 0 0 .716-.397zm-9.5 8.98L8 10.5 5.5 8l-4.146 4.146a.5.5 0 0 0-.146.354z" />
+                            </svg>
+                        </label>
+                        <button class="icon-btn icon-btn-danger" title="Delete" aria-label="Delete" @onclick="DeleteEnvironmentMap">
+                            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                <path d="M5.5 5.5a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm2.5 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm3 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0z" />
+                                <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <label class="watermark-upload">
+                <InputFile OnChange="OnEnvironmentMapFileSelected" accept=".jpg,.jpeg,.png,image/jpeg,image/png" hidden />
+                <span>Upload an equirectangular JPG or PNG to light the viewer with image-based lighting instead of the studio light rig.</span>
+            </label>
+        }
+
+        @if (_environmentMapError is not null)
+        {
+            <p class="text-danger">@_environmentMapError</p>
+        }
+    </div>
+</div>
+
+@code {
+    private Unit? _editing;
+    private bool _isNew;
+
+    // The unit's ModelUrl as it was when editing began, so Save/Cancel know which physical file
+    // (if any) was superseded and needs cleaning up.
+    private string? _originalModelUrl;
+    private string? _modelFileError;
+
+    // Same idea as _originalModelUrl, but for the "Learn More" PDF.
+    private string? _originalPdfUrl;
+    private string? _pdfFileError;
+
+    private Watermark? _watermark;
+    private string? _watermarkError;
+
+    private AppSettings _appSettings = new();
+
+    private EnvironmentMap? _environmentMap;
+    private string? _environmentMapError;
+
+    protected override void OnInitialized()
+    {
+        Store.Changed += OnUnitsChanged;
+        WatermarkStore.Changed += OnWatermarkStoreChanged;
+        _watermark = WatermarkStore.Get();
+
+        AppSettingsStore.Changed += OnAppSettingsChanged;
+        _appSettings = AppSettingsStore.Get();
+
+        EnvironmentMapStore.Changed += OnEnvironmentMapStoreChanged;
+        _environmentMap = EnvironmentMapStore.Get();
+    }
+
+    private void OnEnvironmentMapStoreChanged()
+    {
+        InvokeAsync(() =>
+        {
+            _environmentMap = EnvironmentMapStore.Get();
+            StateHasChanged();
+        });
+    }
+
+    private const long MaxEnvironmentMapFileSize = 10 * 1024 * 1024;
+
+    private async Task OnEnvironmentMapFileSelected(InputFileChangeEventArgs e)
+    {
+        _environmentMapError = null;
+        var file = e.File;
+        var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+
+        if (extension != ".jpg" && extension != ".jpeg" && extension != ".png")
+        {
+            _environmentMapError = "Only JPG or PNG files are supported.";
+            return;
+        }
+
+        if (file.Size > MaxEnvironmentMapFileSize)
+        {
+            _environmentMapError = "File is too large (max 10 MB).";
+            return;
+        }
+
+        try
+        {
+            await using var stream = file.OpenReadStream(MaxEnvironmentMapFileSize);
+            await EnvironmentMapStore.SetAsync(file.Name, stream);
+        }
+        catch (Exception ex)
+        {
+            _environmentMapError = $"Upload failed: {ex.Message}";
+        }
+    }
+
+    private void DeleteEnvironmentMap()
+    {
+        _environmentMapError = null;
+        EnvironmentMapStore.Delete();
+    }
+
+    private void OnAppSettingsChanged()
+    {
+        InvokeAsync(() =>
+        {
+            _appSettings = AppSettingsStore.Get();
+            StateHasChanged();
+        });
+    }
+
+    private void OnBackgroundColorChanged(ChangeEventArgs e)
+    {
+        AppSettingsStore.SetBackgroundColor((string)e.Value!);
+    }
+
+    private void OnUnitsChanged() => InvokeAsync(StateHasChanged);
+
+    private void OnWatermarkStoreChanged()
+    {
+        InvokeAsync(() =>
+        {
+            _watermark = WatermarkStore.Get();
+            StateHasChanged();
+        });
+    }
+
+    private const long MaxWatermarkFileSize = 5 * 1024 * 1024;
+
+    private async Task OnWatermarkFileSelected(InputFileChangeEventArgs e)
+    {
+        _watermarkError = null;
+        var file = e.File;
+        var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+
+        if (extension != ".png" && extension != ".svg")
+        {
+            _watermarkError = "Only PNG or SVG files are supported.";
+            return;
+        }
+
+        if (file.Size > MaxWatermarkFileSize)
+        {
+            _watermarkError = "File is too large (max 5 MB).";
+            return;
+        }
+
+        try
+        {
+            await using var stream = file.OpenReadStream(MaxWatermarkFileSize);
+            await WatermarkStore.SetAsync(file.Name, stream);
+        }
+        catch (Exception ex)
+        {
+            _watermarkError = $"Upload failed: {ex.Message}";
+        }
+    }
+
+    private void DeleteWatermark()
+    {
+        _watermarkError = null;
+        WatermarkStore.Delete();
+    }
+
+    private void OnGrayscaleToggled(ChangeEventArgs e)
+    {
+        WatermarkStore.SetGrayscale((bool)e.Value!);
+    }
+
+    private const long MaxModelFileSize = 50 * 1024 * 1024;
+
+    private void StartAdd()
+    {
+        _editing = new Unit { Name = "new-unit" };
+        _originalModelUrl = null;
+        _modelFileError = null;
+        _originalPdfUrl = null;
+        _pdfFileError = null;
+        _isNew = true;
+    }
+
+    private void StartEdit(Unit unit)
+    {
+        _editing = new Unit
+        {
+            Id = unit.Id,
+            Name = unit.Name,
+            Rotation = new Vector3(unit.Rotation.X, unit.Rotation.Y, unit.Rotation.Z),
+            ModelUrl = unit.ModelUrl,
+            ModelFileName = unit.ModelFileName,
+            PdfUrl = unit.PdfUrl,
+            PdfFileName = unit.PdfFileName,
+            Zones = unit.Zones,
+            WidthPerZone = unit.WidthPerZone,
+            Height = unit.Height,
+            AveragePowerUsage = unit.AveragePowerUsage,
+            WarrantyYears = unit.WarrantyYears,
+        };
+        _originalModelUrl = unit.ModelUrl;
+        _modelFileError = null;
+        _originalPdfUrl = unit.PdfUrl;
+        _pdfFileError = null;
+        _isNew = false;
+    }
+
+    private async Task OnModelFileSelected(InputFileChangeEventArgs e)
+    {
+        if (_editing is null)
+        {
+            return;
+        }
+
+        _modelFileError = null;
+        var file = e.File;
+        var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+
+        if (extension != ".glb" && extension != ".gltf")
+        {
+            _modelFileError = "Only GLB or GLTF files are supported.";
+            return;
+        }
+
+        if (file.Size > MaxModelFileSize)
+        {
+            _modelFileError = "File is too large (max 50 MB).";
+            return;
+        }
+
+        try
+        {
+            // If this edit session already uploaded a replacement earlier (before saving), that
+            // intermediate file is about to be superseded again and would otherwise be orphaned.
+            if (_editing.ModelUrl is not null && _editing.ModelUrl != _originalModelUrl)
+            {
+                ModelFileStore.DeleteByUrl(_editing.ModelUrl);
+            }
+
+            await using var stream = file.OpenReadStream(MaxModelFileSize);
+            _editing.ModelUrl = await ModelFileStore.SaveAsync(file.Name, stream);
+            _editing.ModelFileName = file.Name;
+        }
+        catch (Exception ex)
+        {
+            _modelFileError = $"Upload failed: {ex.Message}";
+        }
+    }
+
+    private void RemoveModelFile()
+    {
+        if (_editing is null)
+        {
+            return;
+        }
+
+        // The original file (if any) is only actually deleted on Save/Cancel, once we know
+        // whether this edit is being committed or discarded.
+        _editing.ModelUrl = null;
+        _editing.ModelFileName = null;
+    }
+
+    private const long MaxPdfFileSize = 20 * 1024 * 1024;
+
+    private async Task OnPdfFileSelected(InputFileChangeEventArgs e)
+    {
+        if (_editing is null)
+        {
+            return;
+        }
+
+        _pdfFileError = null;
+        var file = e.File;
+        var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+
+        if (extension != ".pdf")
+        {
+            _pdfFileError = "Only PDF files are supported.";
+            return;
+        }
+
+        if (file.Size > MaxPdfFileSize)
+        {
+            _pdfFileError = "File is too large (max 20 MB).";
+            return;
+        }
+
+        try
+        {
+            if (_editing.PdfUrl is not null && _editing.PdfUrl != _originalPdfUrl)
+            {
+                PdfFileStore.DeleteByUrl(_editing.PdfUrl);
+            }
+
+            await using var stream = file.OpenReadStream(MaxPdfFileSize);
+            _editing.PdfUrl = await PdfFileStore.SaveAsync(file.Name, stream);
+            _editing.PdfFileName = file.Name;
+        }
+        catch (Exception ex)
+        {
+            _pdfFileError = $"Upload failed: {ex.Message}";
+        }
+    }
+
+    private void RemovePdfFile()
+    {
+        if (_editing is null)
+        {
+            return;
+        }
+
+        _editing.PdfUrl = null;
+        _editing.PdfFileName = null;
+    }
+
+    private void Save()
+    {
+        if (_editing is null)
+        {
+            return;
+        }
+
+        if (_isNew)
+        {
+            Store.Add(_editing);
+        }
+        else
+        {
+            Store.Update(_editing);
+        }
+
+        if (_originalModelUrl is not null && _originalModelUrl != _editing.ModelUrl)
+        {
+            ModelFileStore.DeleteByUrl(_originalModelUrl);
+        }
+
+        if (_originalPdfUrl is not null && _originalPdfUrl != _editing.PdfUrl)
+        {
+            PdfFileStore.DeleteByUrl(_originalPdfUrl);
+        }
+
+        _editing = null;
+    }
+
+    private void CancelEdit()
+    {
+        if (_editing is not null && _editing.ModelUrl is not null && _editing.ModelUrl != _originalModelUrl)
+        {
+            // A new file was uploaded this session but never saved to a unit - clean it up.
+            ModelFileStore.DeleteByUrl(_editing.ModelUrl);
+        }
+
+        if (_editing is not null && _editing.PdfUrl is not null && _editing.PdfUrl != _originalPdfUrl)
+        {
+            PdfFileStore.DeleteByUrl(_editing.PdfUrl);
+        }
+
+        _editing = null;
+    }
+
+    private void DeleteUnit(Unit unit)
+    {
+        ModelFileStore.DeleteByUrl(unit.ModelUrl);
+        PdfFileStore.DeleteByUrl(unit.PdfUrl);
+        Store.Delete(unit.Id);
+    }
+
+    public void Dispose()
+    {
+        Store.Changed -= OnUnitsChanged;
+        WatermarkStore.Changed -= OnWatermarkStoreChanged;
+        AppSettingsStore.Changed -= OnAppSettingsChanged;
+        EnvironmentMapStore.Changed -= OnEnvironmentMapStoreChanged;
+    }
+}

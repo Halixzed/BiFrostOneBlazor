@@ -1,28 +1,78 @@
 @page "/"
 @rendermode InteractiveServer
 @using BlazorThreeJS.Cameras
-@using BlazorThreeJS.Core
-@using BlazorThreeJS.Geometires
+@using BlazorThreeJS.Enums
 @using BlazorThreeJS.Lights
-@using BlazorThreeJS.Materials
 @using BlazorThreeJS.Maths
-@using BlazorThreeJS.Objects
 @using BlazorThreeJS.Scenes
 @using BlazorThreeJS.Settings
 @using BlazorThreeJS.Viewers
 @using PortfolioApp.Models
 @using PortfolioApp.Services
+@using PortfolioApp.Components.Shared
 @implements IDisposable
 @inject UnitStore Store
+@inject WatermarkStore WatermarkStore
+@inject AppSettingsStore AppSettingsStore
+@inject EnvironmentMapStore EnvironmentMapStore
+@inject IJSRuntime JS
 
 <PageTitle>Home</PageTitle>
 
-<div class="viewer-shell">
-    <a class="admin-link" href="admin" data-enhance-nav="false">Admin</a>
-    <Viewer @ref="_viewer"
-            ViewerSettings="_viewerSettings"
-            Scene="_scene"
-            Camera="_camera" />
+<div class="viewer-shell" style="background-color: @_appSettings.BackgroundColor;">
+    @if (_watermark is not null)
+    {
+        <img class="watermark-bg @(_watermark.Grayscale ? "grayscale" : "")" src="@WatermarkStore.Url(_watermark)" alt="" />
+    }
+    <a class="admin-link" href="settings" data-enhance-nav="false" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true">
+            <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z" />
+        </svg>
+    </a>
+    <div class="model-fade @(_modelVisible ? "visible" : "")">
+        <Viewer @ref="_viewer"
+                ViewerSettings="_viewerSettings"
+                Scene="_scene"
+                Camera="_camera" />
+    </div>
+    <div class="viewer-vignette"></div>
+
+    @if (ActiveUnit is not null && string.IsNullOrWhiteSpace(ActiveUnit.ModelUrl))
+    {
+        <div class="no-model-message">Please upload a model file for this unit.</div>
+    }
+
+    @if (ActiveUnit is not null)
+    {
+        <div class="unit-card">
+            <h2>@ActiveUnit.Name</h2>
+
+            <div class="unit-card-stats">
+                <StatBar Label="Zones" Value="ActiveUnit.Zones" Max="StatMaxZones" />
+                <StatBar Label="Width/zone" Value="ActiveUnit.WidthPerZone" Max="StatMaxWidthPerZone" Suffix="m" />
+                <StatBar Label="Height" Value="ActiveUnit.Height" Max="StatMaxHeight" Suffix="m" />
+                <StatBar Label="Avg. power" Value="ActiveUnit.AveragePowerUsage" Max="StatMaxPower" Suffix="kWh" />
+                <StatBar Label="Warranty" Value="ActiveUnit.WarrantyYears" Max="StatMaxWarranty" Suffix="yr" />
+            </div>
+        </div>
+    }
+
+    @if (ActiveUnit is not null && !string.IsNullOrWhiteSpace(ActiveUnit.PdfUrl))
+    {
+        <button class="learn-more-btn" @onclick="OpenPdf">Learn More</button>
+    }
+
+    @if (_showPdf && ActiveUnit is not null && !string.IsNullOrWhiteSpace(ActiveUnit.PdfUrl))
+    {
+        <div class="pdf-overlay">
+            <button class="pdf-overlay-close" title="Close" aria-label="Close" @onclick="ClosePdf">
+                <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true">
+                    <path d="M2.146 2.146a.5.5 0 0 1 .708 0L8 7.293l5.146-5.147a.5.5 0 1 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854a.5.5 0 0 1 0-.708" />
+                </svg>
+            </button>
+            <iframe @ref="_pdfIframe" class="pdf-overlay-frame" src="@ActiveUnit.PdfUrl" title="@(ActiveUnit.PdfFileName ?? "Learn More")"></iframe>
+        </div>
+    }
 </div>
 
 @code {
@@ -33,36 +83,177 @@
         ContainerId = "portfolio-viewer",
     };
 
-    private readonly Scene _scene = new()
-    {
-        BackGroundColor = "#11151c",
-    };
+    // BlazorThreeJS.Scene.BackGroundColor defaults to "#505050" (not null), so it must be
+    // explicitly blanked out - the app-lib.js patch only skips painting a background when this
+    // value is falsy, which lets the CSS background / watermark image behind it show through.
+    private readonly Scene _scene = new() { BackGroundColor = "" };
 
-    private readonly PerspectiveCamera _camera = new(fov: 60, near: 0.1, far: 1000)
+    // Low FOV + a proportionally farther camera flattens perspective distortion for a more
+    // isometric-looking result (same viewing direction as before, just narrower and farther back).
+    private readonly PerspectiveCamera _camera = new(fov: 20, near: 0.1, far: 1000)
     {
-        Position = new Vector3(6, 6, 10),
+        Position = new Vector3(15, 15, 25),
         LookAt = new Vector3(0, 0, 0),
     };
 
+    private bool _moduleLoaded;
+    private bool _modelVisible;
+    private Watermark? _watermark;
+    private AppSettings _appSettings = new();
+    private EnvironmentMap? _environmentMap;
+
+    private bool _showPdf;
+    private bool _pdfWatchdogActive;
+    private ElementReference _pdfIframe;
+    private DotNetObjectReference<Home>? _dotNetRef;
+
+    private const int PdfInactivityTimeoutMs = 30_000;
+
+    private Unit? ActiveUnit => Store.GetAll().FirstOrDefault(u => u.IsActive);
+
+    // Caps for the game-style stat bars on the unit card; tune to match real product ranges.
+    private const int StatMaxZones = 5;
+    private const int StatMaxWidthPerZone = 5;
+    private const int StatMaxHeight = 3;
+    private const int StatMaxPower = 10;
+    private const int StatMaxWarranty = 10;
+
     protected override void OnInitialized()
     {
+        _watermark = WatermarkStore.Get();
+        _appSettings = AppSettingsStore.Get();
+        _environmentMap = EnvironmentMapStore.Get();
         BuildScene();
         Store.Changed += OnUnitsChanged;
+        WatermarkStore.Changed += OnWatermarkChanged;
+        AppSettingsStore.Changed += OnAppSettingsChanged;
+        EnvironmentMapStore.Changed += OnEnvironmentMapChanged;
+    }
+
+    private void OnWatermarkChanged()
+    {
+        InvokeAsync(() =>
+        {
+            _watermark = WatermarkStore.Get();
+            StateHasChanged();
+        });
+    }
+
+    private void OnAppSettingsChanged()
+    {
+        InvokeAsync(() =>
+        {
+            _appSettings = AppSettingsStore.Get();
+            StateHasChanged();
+        });
+    }
+
+    private async void OnEnvironmentMapChanged()
+    {
+        await InvokeAsync(async () =>
+        {
+            _environmentMap = EnvironmentMapStore.Get();
+
+            if (_viewer is not null && _moduleLoaded)
+            {
+                // Rebuild so the direct light rig is added/removed to match whether an HDRI is
+                // now active - see BuildScene(). ClearSceneAsync/UpdateScene don't touch
+                // scene.environment itself, so that's applied separately below.
+                await _viewer.ClearSceneAsync();
+                BuildScene();
+                await _viewer.UpdateScene();
+                await LoadModelsAsync();
+                await ApplyEnvironmentMapAsync();
+            }
+            else
+            {
+                BuildScene();
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private async Task ApplyEnvironmentMapAsync()
+    {
+        var url = _environmentMap is not null ? EnvironmentMapStore.Url(_environmentMap) : null;
+        await JS.InvokeVoidAsync("portfolioSetEnvironmentMap", url);
+    }
+
+    private void OpenPdf() => _showPdf = true;
+
+    private async Task ClosePdf()
+    {
+        _showPdf = false;
+        _pdfWatchdogActive = false;
+        await JS.InvokeVoidAsync("portfolioStopPdfWatchdog");
+    }
+
+    // Called from pdf-watchdog.js after 30s of no interaction with the page or the PDF itself.
+    [JSInvokable]
+    public async Task ClosePdfFromWatchdog()
+    {
+        _showPdf = false;
+        _pdfWatchdogActive = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_showPdf && !_pdfWatchdogActive)
+        {
+            _pdfWatchdogActive = true;
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("portfolioStartPdfWatchdog", _dotNetRef, PdfInactivityTimeoutMs, _pdfIframe);
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && _viewer is not null)
+        {
+            // Request3DModel talks to a JS module the Viewer loads asynchronously on its own
+            // first render, so calling it from our OnAfterRender(firstRender) races the module
+            // load and can crash the circuit. JsModuleLoaded fires once it's actually ready.
+            _viewer.JsModuleLoaded += OnViewerModuleLoaded;
+        }
+    }
+
+    private async Task OnViewerModuleLoaded()
+    {
+        _moduleLoaded = true;
+        await ApplyEnvironmentMapAsync();
+        await LoadModelsAsync();
+        _modelVisible = ActiveUnit?.ModelUrl is not null;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async void OnUnitsChanged()
     {
-        BuildScene();
         await InvokeAsync(async () =>
         {
-            if (_viewer is not null)
+            // Hide immediately so switching units re-triggers the fade-in rather than just
+            // instantly swapping the model while already fully visible.
+            _modelVisible = false;
+            StateHasChanged();
+
+            if (_viewer is not null && _moduleLoaded)
             {
-                // UpdateScene() only pushes additions to the live three.js scene, so the
-                // JS-side scene must be cleared first or removed units keep rendering.
+                // ClearSceneAsync also removes every Mesh/LabelText entry from Scene.Children as
+                // a side effect (see BlazorThreeJS.Viewers.Viewer.ClearSceneAsync), so it has to
+                // run before BuildScene() adds the fresh ones back - the reverse order silently
+                // strips out the meshes BuildScene() just added, leaving only the lights.
                 await _viewer.ClearSceneAsync();
+                BuildScene();
                 await _viewer.UpdateScene();
+                await LoadModelsAsync();
+            }
+            else
+            {
+                BuildScene();
             }
 
+            _modelVisible = ActiveUnit?.ModelUrl is not null;
             StateHasChanged();
         });
     }
@@ -70,33 +261,65 @@
     private void BuildScene()
     {
         _scene.Children.Clear();
-        _scene.Add(new AmbientLight { Color = "#ffffff", Intensity = 0.6 });
-        _scene.Add(new PointLight { Color = "#ffffff", Intensity = 1.2, Position = new Vector3(8, 10, 8) });
 
-        foreach (var unit in Store.GetAll())
+        // An uploaded HDRI-style environment image (applied separately via JS interop -
+        // ApplyEnvironmentMapAsync/portfolioSetEnvironmentMap) adds image-based ambient/reflection
+        // lighting on top of these, it doesn't replace them - both run together.
+        //
+        // Studio-style rig: low ambient base so the lights actually carve out shape/shadow, plus
+        // key/fill/rim/bounce lights around the model instead of one flat overhead light.
+        //
+        // These are still PointLight here in C# (BlazorThreeJS's public API has no SpotLight or
+        // RectAreaLight class at all), but the app-lib.js patch (see Program.cs) builds each one
+        // as a THREE.SpotLight aimed at the origin instead, for a more directional/focused studio
+        // look. Position/Color/Intensity below still apply the same way either way.
+        //
+        // All 4 lights cast shadows (see the app-lib.js patch notes in Program.cs) - a
+        // shadow-casting key light only, with the other 3 unshadowed, was tried first but left
+        // those 3 lights shining straight through the model with no occlusion at all.
+        _scene.Add(new AmbientLight { Color = "#ffffff", Intensity = 0.45 });
+        _scene.Add(new PointLight { Color = "#ffffff", Intensity = 1.4, Position = new Vector3(10, 12, 8) });
+        _scene.Add(new PointLight { Color = "#ffffff", Intensity = 0.6, Position = new Vector3(-10, 6, 6) });
+        _scene.Add(new PointLight { Color = "#ffffff", Intensity = 0.9, Position = new Vector3(0, 8, -10) });
+        _scene.Add(new PointLight { Color = "#ffffff", Intensity = 0.3, Position = new Vector3(0, -6, 4) });
+    }
+
+    private async Task LoadModelsAsync()
+    {
+        if (_viewer is null)
         {
-            _scene.Add(new Mesh
+            return;
+        }
+
+        foreach (var unit in Store.GetAll().Where(u => u.IsActive && !string.IsNullOrWhiteSpace(u.ModelUrl)))
+        {
+            await _viewer.Request3DModel(new ImportSettings
             {
-                Name = unit.Name,
-                Geometry = CreateGeometry(unit.Shape),
-                Material = new MeshStandardMaterial { Color = unit.Color },
-                Position = unit.Position,
+                // Viewer.Request3DModel keys a process-wide static dictionary by Uuid and throws
+                // if the key already exists, so every request (even reloads of the same unit)
+                // needs a fresh value - the default Guid.Empty collides on the second call.
+                Uuid = Guid.NewGuid(),
+                FileURL = unit.ModelUrl!,
+                Format = Import3DFormats.Gltf,
+                Scene = _scene,
+                Position = new Vector3(0, 0, 0),
                 Rotation = new Euler(unit.Rotation.X, unit.Rotation.Y, unit.Rotation.Z),
-                Scale = new Vector3(unit.Scale, unit.Scale, unit.Scale),
+                Scale = new Vector3(1, 1, 1),
             });
         }
     }
 
-    private static BufferGeometry CreateGeometry(UnitShape shape) => shape switch
-    {
-        UnitShape.Sphere => new SphereGeometry { Radius = 1 },
-        UnitShape.Cone => new ConeGeometry { Radius = 1, Height = 1.6 },
-        UnitShape.Torus => new TorusGeometry { Radius = 1, Tube = 0.35 },
-        _ => new BoxGeometry { Width = 1.4, Height = 1.4, Depth = 1.4 },
-    };
-
     public void Dispose()
     {
         Store.Changed -= OnUnitsChanged;
+        WatermarkStore.Changed -= OnWatermarkChanged;
+        AppSettingsStore.Changed -= OnAppSettingsChanged;
+        EnvironmentMapStore.Changed -= OnEnvironmentMapChanged;
+        if (_viewer is not null)
+        {
+            _viewer.JsModuleLoaded -= OnViewerModuleLoaded;
+        }
+
+        _dotNetRef?.Dispose();
     }
 }

@@ -22,6 +22,15 @@ builder.Services.AddSingleton<PdfFileStore>();
 
 var app = builder.Build();
 
+// Migrate the database once at startup, before any singleton store can query it - relying on
+// whichever store's constructor happens to run first (as UnitStore used to do) is a race that
+// only surfaces on a brand-new/empty database (e.g. a freshly attached Railway volume).
+using (var scope = app.Services.CreateScope())
+{
+    using var context = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PortfolioDbContext>>().CreateDbContext();
+    context.Database.Migrate();
+}
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {

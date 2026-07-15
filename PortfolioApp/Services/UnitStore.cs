@@ -14,7 +14,6 @@ public class UnitStore
         _contextFactory = contextFactory;
 
         using var context = _contextFactory.CreateDbContext();
-        context.Database.Migrate();
 
         if (!context.Units.Any())
         {

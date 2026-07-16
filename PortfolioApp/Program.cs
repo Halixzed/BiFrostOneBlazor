@@ -182,6 +182,46 @@ app.MapGet("/pdf-file/{fileName}", (string fileName, PdfFileStore pdfFileStore) 
     return Results.File(fullPath, "application/pdf");
 });
 
+// TEMPORARY, read-only - lets the Node rewrite's migration script enumerate every unit/device and
+// the URLs to download their files from, since this app has no other JSON API at all. Doesn't
+// mutate anything; safe to remove once the migration to the new stack is complete.
+app.MapGet("/export", (UnitStore unitStore, DeviceStore deviceStore, WatermarkStore watermarkStore, EnvironmentMapStore environmentMapStore) =>
+{
+    var units = unitStore.GetAll().Select(u => new
+    {
+        u.Id,
+        u.Name,
+        Rotation = new { u.Rotation.X, u.Rotation.Y, u.Rotation.Z },
+        u.Zones,
+        u.WidthPerZone,
+        u.Height,
+        u.AveragePowerUsage,
+        u.WarrantyYears,
+        u.ModelFileName,
+        ModelUrl = u.ModelUrl,
+        u.PdfFileName,
+        PdfUrl = u.PdfUrl,
+    });
+
+    var devices = deviceStore.GetAll().Select(d =>
+    {
+        var watermark = watermarkStore.Get(d.Id);
+        var environmentMap = environmentMapStore.Get(d.Id);
+        return new
+        {
+            d.Id,
+            d.Key,
+            d.DisplayName,
+            d.BackgroundColor,
+            d.ActiveUnitId,
+            Watermark = watermark is null ? null : new { watermark.OriginalFileName, watermark.Grayscale, Url = watermarkStore.Url(watermark) },
+            EnvironmentMap = environmentMap is null ? null : new { environmentMap.OriginalFileName, Url = environmentMapStore.Url(environmentMap) },
+        };
+    });
+
+    return Results.Json(new { units, devices });
+});
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

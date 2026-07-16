@@ -104,6 +104,18 @@ a, .btn-link {
     color: #fff;
 }
 
+/* Tablet and narrower - the overlay chrome (admin link, unit card, learn-more button) uses
+   desktop-sized spacing/touch targets by default; tighten it up so it doesn't crowd a
+   768-1024px viewport, and give the link itself a touch-friendly minimum size. */
+@media (max-width: 1024px) {
+    .admin-link {
+        top: 0.75rem;
+        right: 0.75rem;
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+}
+
 h1:focus {
     outline: none;
 }

@@ -28,11 +28,13 @@
     bottom: 1rem;
     z-index: 10;
     min-width: 280px;
+    max-width: calc(100vw - 2rem);
     padding: 1rem 1.25rem;
     border: 1px solid rgba(255, 255, 255, 0.2);
     background: #333333;
     backdrop-filter: blur(6px);
     color: #fff;
+    box-sizing: border-box;
 }
 
 .unit-card-stats {
@@ -113,4 +115,55 @@
 .pdf-overlay-close:hover {
     background: rgba(220, 53, 69, 0.5);
     border-color: #dc3545;
+}
+
+/* Tablet (portrait and landscape) - tighten spacing and touch targets a bit; the unit card's
+   max-width above already keeps it from overflowing, this just reclaims some edge padding. */
+@media (max-width: 1024px) {
+    .unit-card {
+        left: 0.75rem;
+        bottom: 0.75rem;
+        padding: 0.85rem 1rem;
+    }
+
+    .unit-card h2 {
+        font-size: 1.1rem;
+    }
+
+    /* The unit card grows wide enough at these widths (see its max-width/full-width rules) to
+       collide with a centered bottom bar, so the button sits above the card instead of beside
+       it - 15rem clears the card's ~203px measured height (12px/8px bottom offset + padding +
+       5 stat rows) with room to spare. */
+    .learn-more-btn {
+        bottom: 15rem;
+        padding: 0.6rem 1.5rem;
+    }
+
+    .pdf-overlay-close {
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+}
+
+/* Tablet portrait / large phone - the fixed min-width no longer fits comfortably next to the
+   screen edges, and the stat rows can wrap onto two lines rather than truncating. */
+@media (max-width: 600px) {
+    .unit-card {
+        left: 0.5rem;
+        right: 0.5rem;
+        bottom: 0.5rem;
+        min-width: 0;
+        max-width: none;
+        width: auto;
+    }
+
+    .unit-card-row {
+        flex-wrap: wrap;
+        row-gap: 0.15rem;
+    }
+
+    .pdf-overlay-frame {
+        width: 96%;
+        height: 88%;
+    }
 }

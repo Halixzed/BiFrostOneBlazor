@@ -31,51 +31,53 @@
         </button>
     </div>
 
-    <table class="table">
-        <thead>
-            <tr>
-                <th>On screen</th>
-                <th>Name</th>
-                <th>Model file</th>
-                <th>Zones</th>
-                <th>Width/zone</th>
-                <th>Height</th>
-                <th>Avg. power</th>
-                <th>Warranty</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var unit in Store.GetAll())
-            {
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
                 <tr>
-                    <td>
-                        <input type="checkbox" checked="@unit.IsActive" @onchange="() => Store.SetActive(unit.Id)" />
-                    </td>
-                    <td>@unit.Name</td>
-                    <td>@(string.IsNullOrWhiteSpace(unit.ModelUrl) ? "-" : unit.ModelFileName ?? "model.glb")</td>
-                    <td>@unit.Zones</td>
-                    <td>@unit.WidthPerZone m</td>
-                    <td>@unit.Height m</td>
-                    <td>@unit.AveragePowerUsage kWh</td>
-                    <td>@unit.WarrantyYears years</td>
-                    <td class="text-end">
-                        <button class="icon-btn icon-btn-primary" title="Edit" aria-label="Edit" @onclick="() => StartEdit(unit)">
-                            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
-                                <path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708zm.646 6.061L9.5 2.207 1.171 10.536a1.5 1.5 0 0 0-.397.716l-.83 3.108a.5.5 0 0 0 .61.61l3.109-.83a1.5 1.5 0 0 0 .716-.397zm-9.5 8.98L8 10.5 5.5 8l-4.146 4.146a.5.5 0 0 0-.146.354z" />
-                            </svg>
-                        </button>
-                        <button class="icon-btn icon-btn-danger" title="Delete" aria-label="Delete" @onclick="() => DeleteUnit(unit)">
-                            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
-                                <path d="M5.5 5.5a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm2.5 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm3 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0z" />
-                                <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z" />
-                            </svg>
-                        </button>
-                    </td>
+                    <th>On screen</th>
+                    <th>Name</th>
+                    <th>Model file</th>
+                    <th>Zones</th>
+                    <th>Width/zone</th>
+                    <th>Height</th>
+                    <th>Avg. power</th>
+                    <th>Warranty</th>
+                    <th></th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var unit in Store.GetAll())
+                {
+                    <tr>
+                        <td>
+                            <input type="checkbox" checked="@unit.IsActive" @onchange="() => Store.SetActive(unit.Id)" />
+                        </td>
+                        <td>@unit.Name</td>
+                        <td>@(string.IsNullOrWhiteSpace(unit.ModelUrl) ? "-" : unit.ModelFileName ?? "model.glb")</td>
+                        <td>@unit.Zones</td>
+                        <td>@unit.WidthPerZone m</td>
+                        <td>@unit.Height m</td>
+                        <td>@unit.AveragePowerUsage kWh</td>
+                        <td>@unit.WarrantyYears years</td>
+                        <td class="text-end">
+                            <button class="icon-btn icon-btn-primary" title="Edit" aria-label="Edit" @onclick="() => StartEdit(unit)">
+                                <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                    <path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708zm.646 6.061L9.5 2.207 1.171 10.536a1.5 1.5 0 0 0-.397.716l-.83 3.108a.5.5 0 0 0 .61.61l3.109-.83a1.5 1.5 0 0 0 .716-.397zm-9.5 8.98L8 10.5 5.5 8l-4.146 4.146a.5.5 0 0 0-.146.354z" />
+                                </svg>
+                            </button>
+                            <button class="icon-btn icon-btn-danger" title="Delete" aria-label="Delete" @onclick="() => DeleteUnit(unit)">
+                                <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                    <path d="M5.5 5.5a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm2.5 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm3 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0z" />
+                                    <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 
     @if (_editing is not null)
     {

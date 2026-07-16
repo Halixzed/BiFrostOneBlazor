@@ -38,3 +38,15 @@
     opacity: 0.7;
     font-variant-numeric: tabular-nums;
 }
+
+/* Narrow phone-width viewports - shrink the fixed label/cell sizing a bit so the row keeps
+   fitting on one line inside the unit card instead of the value column getting squeezed. */
+@media (max-width: 600px) {
+    .stat-bar-label {
+        width: 78px;
+    }
+
+    .stat-bar-cell {
+        width: 11px;
+    }
+}

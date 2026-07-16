@@ -8,17 +8,19 @@ namespace PortfolioApp.Services;
 public class UnitStore
 {
     private readonly IDbContextFactory<PortfolioDbContext> _contextFactory;
+    private readonly DeviceStore _deviceStore;
 
-    public UnitStore(IDbContextFactory<PortfolioDbContext> contextFactory)
+    public UnitStore(IDbContextFactory<PortfolioDbContext> contextFactory, DeviceStore deviceStore)
     {
         _contextFactory = contextFactory;
+        _deviceStore = deviceStore;
 
         using var context = _contextFactory.CreateDbContext();
 
         if (!context.Units.Any())
         {
             context.Units.AddRange(
-                new Unit { Name = "core", IsActive = true },
+                new Unit { Name = "core" },
                 new Unit { Name = "orbiter-1" },
                 new Unit { Name = "orbiter-2" },
                 new Unit { Name = "orbiter-3" });
@@ -75,25 +77,6 @@ public class UnitStore
         return true;
     }
 
-    public bool SetActive(int id)
-    {
-        using var context = _contextFactory.CreateDbContext();
-        var units = context.Units.ToList();
-        if (!units.Any(u => u.Id == id))
-        {
-            return false;
-        }
-
-        foreach (var unit in units)
-        {
-            unit.IsActive = unit.Id == id;
-        }
-
-        context.SaveChanges();
-        Changed?.Invoke();
-        return true;
-    }
-
     public bool Delete(int id)
     {
         using var context = _contextFactory.CreateDbContext();
@@ -105,6 +88,11 @@ public class UnitStore
 
         context.Units.Remove(existing);
         context.SaveChanges();
+
+        // Any device currently showing this unit needs to fall back to "nothing selected" rather
+        // than pointing at a unit that no longer exists.
+        _deviceStore.ClearActiveUnitReferences(id);
+
         Changed?.Invoke();
         return true;
     }

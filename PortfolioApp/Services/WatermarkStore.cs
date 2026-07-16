@@ -22,21 +22,24 @@ public class WatermarkStore
         Directory.CreateDirectory(_uploadsDirectory);
     }
 
-    public event Action? Changed;
+    /// <summary>
+    /// Fired with the affected device's Id - see DeviceStore.Changed for why.
+    /// </summary>
+    public event Action<int>? Changed;
 
-    public Watermark? Get()
+    public Watermark? Get(int deviceId)
     {
         using var context = _contextFactory.CreateDbContext();
-        return context.Watermarks.AsNoTracking().FirstOrDefault();
+        return context.Watermarks.AsNoTracking().FirstOrDefault(w => w.DeviceId == deviceId);
     }
 
     // Served by a dedicated middleware in Program.cs (not a static wwwroot path), since the file
-    // lives outside wwwroot and is only ever this one singleton.
-    public string Url(Watermark watermark) => "/watermark-image";
+    // lives outside wwwroot.
+    public string Url(Watermark watermark) => $"/watermark-image/{watermark.DeviceId}";
 
     public string GetFullPath(Watermark watermark) => Path.Combine(_uploadsDirectory, watermark.StoredFileName);
 
-    public async Task SetAsync(string originalFileName, Stream content)
+    public async Task SetAsync(int deviceId, string originalFileName, Stream content)
     {
         var extension = Path.GetExtension(originalFileName);
         if (!AllowedExtensions.Contains(extension))
@@ -45,7 +48,7 @@ public class WatermarkStore
         }
 
         using var context = _contextFactory.CreateDbContext();
-        var existing = context.Watermarks.FirstOrDefault();
+        var existing = context.Watermarks.FirstOrDefault(w => w.DeviceId == deviceId);
         var grayscale = existing?.Grayscale ?? true;
         if (existing is not null)
         {
@@ -53,7 +56,7 @@ public class WatermarkStore
             context.Watermarks.Remove(existing);
         }
 
-        var storedFileName = $"watermark{extension.ToLowerInvariant()}";
+        var storedFileName = $"watermark-{deviceId}{extension.ToLowerInvariant()}";
         var fullPath = Path.Combine(_uploadsDirectory, storedFileName);
         Directory.CreateDirectory(_uploadsDirectory);
         await using (var fileStream = File.Create(fullPath))
@@ -61,15 +64,15 @@ public class WatermarkStore
             await content.CopyToAsync(fileStream);
         }
 
-        context.Watermarks.Add(new Watermark { OriginalFileName = originalFileName, StoredFileName = storedFileName, Grayscale = grayscale });
+        context.Watermarks.Add(new Watermark { DeviceId = deviceId, OriginalFileName = originalFileName, StoredFileName = storedFileName, Grayscale = grayscale });
         context.SaveChanges();
-        Changed?.Invoke();
+        Changed?.Invoke(deviceId);
     }
 
-    public void SetGrayscale(bool grayscale)
+    public void SetGrayscale(int deviceId, bool grayscale)
     {
         using var context = _contextFactory.CreateDbContext();
-        var existing = context.Watermarks.FirstOrDefault();
+        var existing = context.Watermarks.FirstOrDefault(w => w.DeviceId == deviceId);
         if (existing is null)
         {
             return;
@@ -77,13 +80,13 @@ public class WatermarkStore
 
         existing.Grayscale = grayscale;
         context.SaveChanges();
-        Changed?.Invoke();
+        Changed?.Invoke(deviceId);
     }
 
-    public void Delete()
+    public void Delete(int deviceId)
     {
         using var context = _contextFactory.CreateDbContext();
-        var existing = context.Watermarks.FirstOrDefault();
+        var existing = context.Watermarks.FirstOrDefault(w => w.DeviceId == deviceId);
         if (existing is null)
         {
             return;
@@ -92,7 +95,7 @@ public class WatermarkStore
         DeleteFile(existing.StoredFileName);
         context.Watermarks.Remove(existing);
         context.SaveChanges();
-        Changed?.Invoke();
+        Changed?.Invoke(deviceId);
     }
 
     private void DeleteFile(string storedFileName)

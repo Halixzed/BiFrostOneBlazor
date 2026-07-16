@@ -13,10 +13,10 @@ var dataDirectory = Path.Combine(builder.Environment.ContentRootPath, "App_Data"
 Directory.CreateDirectory(dataDirectory);
 var dbPath = Path.Combine(dataDirectory, "portfolio.db");
 builder.Services.AddDbContextFactory<PortfolioDbContext>(options => options.UseSqlite($"Data Source={dbPath}"));
+builder.Services.AddSingleton<DeviceStore>();
 builder.Services.AddSingleton<UnitStore>();
 builder.Services.AddSingleton<WatermarkStore>();
 builder.Services.AddSingleton<ModelFileStore>();
-builder.Services.AddSingleton<AppSettingsStore>();
 builder.Services.AddSingleton<EnvironmentMapStore>();
 builder.Services.AddSingleton<PdfFileStore>();
 
@@ -43,51 +43,35 @@ app.UseHttpsRedirection();
 
 app.UseAntiforgery();
 
-// Serves the background watermark image from App_Data/uploads (outside wwwroot - see the
+// Serves a device's background watermark image from App_Data/uploads (outside wwwroot - see the
 // WatermarkStore constructor comment for why). app.MapStaticAssets() below only serves files
 // known from the build-time asset manifest, so a plain wwwroot path wouldn't work for a file
 // that's uploaded at runtime and can change or be deleted at any time anyway.
-app.Use(async (context, next) =>
+app.MapGet("/watermark-image/{deviceId:int}", (int deviceId, WatermarkStore watermarkStore) =>
 {
-    if (context.Request.Path == "/watermark-image")
+    var watermark = watermarkStore.Get(deviceId);
+    var fullPath = watermark is null ? null : watermarkStore.GetFullPath(watermark);
+    if (watermark is null || fullPath is null || !File.Exists(fullPath))
     {
-        var watermarkStore = context.RequestServices.GetRequiredService<WatermarkStore>();
-        var watermark = watermarkStore.Get();
-        var fullPath = watermark is null ? null : watermarkStore.GetFullPath(watermark);
-        if (watermark is null || !File.Exists(fullPath))
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-
-        context.Response.ContentType = watermark.StoredFileName.EndsWith(".svg") ? "image/svg+xml" : "image/png";
-        await context.Response.SendFileAsync(fullPath!);
-        return;
+        return Results.NotFound();
     }
 
-    await next();
+    var contentType = watermark.StoredFileName.EndsWith(".svg") ? "image/svg+xml" : "image/png";
+    return Results.File(fullPath, contentType);
 });
 
-// Serves the uploaded HDRI/environment-map image the same way as watermark-image above.
-app.Use(async (context, next) =>
+// Serves a device's uploaded HDRI/environment-map image the same way as watermark-image above.
+app.MapGet("/environment-map-image/{deviceId:int}", (int deviceId, EnvironmentMapStore environmentMapStore) =>
 {
-    if (context.Request.Path == "/environment-map-image")
+    var environmentMap = environmentMapStore.Get(deviceId);
+    var fullPath = environmentMap is null ? null : environmentMapStore.GetFullPath(environmentMap);
+    if (environmentMap is null || fullPath is null || !File.Exists(fullPath))
     {
-        var environmentMapStore = context.RequestServices.GetRequiredService<EnvironmentMapStore>();
-        var environmentMap = environmentMapStore.Get();
-        var fullPath = environmentMap is null ? null : environmentMapStore.GetFullPath(environmentMap);
-        if (environmentMap is null || !File.Exists(fullPath))
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-
-        context.Response.ContentType = environmentMap.StoredFileName.EndsWith(".png") ? "image/png" : "image/jpeg";
-        await context.Response.SendFileAsync(fullPath!);
-        return;
+        return Results.NotFound();
     }
 
-    await next();
+    var contentType = environmentMap.StoredFileName.EndsWith(".png") ? "image/png" : "image/jpeg";
+    return Results.File(fullPath, contentType);
 });
 
 // The BlazorThreeJS Viewer component injects its own <script src="_content/BlazorThreeJS/dist/app-lib.js">

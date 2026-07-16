@@ -20,21 +20,23 @@ public class EnvironmentMapStore
         Directory.CreateDirectory(_uploadsDirectory);
     }
 
-    public event Action? Changed;
+    /// <summary>
+    /// Fired with the affected device's Id - see DeviceStore.Changed for why.
+    /// </summary>
+    public event Action<int>? Changed;
 
-    public EnvironmentMap? Get()
+    public EnvironmentMap? Get(int deviceId)
     {
         using var context = _contextFactory.CreateDbContext();
-        return context.EnvironmentMaps.AsNoTracking().FirstOrDefault();
+        return context.EnvironmentMaps.AsNoTracking().FirstOrDefault(e => e.DeviceId == deviceId);
     }
 
-    // Served by a dedicated middleware in Program.cs, since the file lives outside wwwroot and is
-    // only ever this one singleton.
-    public string Url(EnvironmentMap environmentMap) => "/environment-map-image";
+    // Served by a dedicated middleware in Program.cs, since the file lives outside wwwroot.
+    public string Url(EnvironmentMap environmentMap) => $"/environment-map-image/{environmentMap.DeviceId}";
 
     public string GetFullPath(EnvironmentMap environmentMap) => Path.Combine(_uploadsDirectory, environmentMap.StoredFileName);
 
-    public async Task SetAsync(string originalFileName, Stream content)
+    public async Task SetAsync(int deviceId, string originalFileName, Stream content)
     {
         var extension = Path.GetExtension(originalFileName);
         if (!AllowedExtensions.Contains(extension))
@@ -43,14 +45,14 @@ public class EnvironmentMapStore
         }
 
         using var context = _contextFactory.CreateDbContext();
-        var existing = context.EnvironmentMaps.FirstOrDefault();
+        var existing = context.EnvironmentMaps.FirstOrDefault(e => e.DeviceId == deviceId);
         if (existing is not null)
         {
             DeleteFile(existing.StoredFileName);
             context.EnvironmentMaps.Remove(existing);
         }
 
-        var storedFileName = $"environment{extension.ToLowerInvariant()}";
+        var storedFileName = $"environment-{deviceId}{extension.ToLowerInvariant()}";
         var fullPath = Path.Combine(_uploadsDirectory, storedFileName);
         Directory.CreateDirectory(_uploadsDirectory);
         await using (var fileStream = File.Create(fullPath))
@@ -58,15 +60,15 @@ public class EnvironmentMapStore
             await content.CopyToAsync(fileStream);
         }
 
-        context.EnvironmentMaps.Add(new EnvironmentMap { OriginalFileName = originalFileName, StoredFileName = storedFileName });
+        context.EnvironmentMaps.Add(new EnvironmentMap { DeviceId = deviceId, OriginalFileName = originalFileName, StoredFileName = storedFileName });
         context.SaveChanges();
-        Changed?.Invoke();
+        Changed?.Invoke(deviceId);
     }
 
-    public void Delete()
+    public void Delete(int deviceId)
     {
         using var context = _contextFactory.CreateDbContext();
-        var existing = context.EnvironmentMaps.FirstOrDefault();
+        var existing = context.EnvironmentMaps.FirstOrDefault(e => e.DeviceId == deviceId);
         if (existing is null)
         {
             return;
@@ -75,7 +77,7 @@ public class EnvironmentMapStore
         DeleteFile(existing.StoredFileName);
         context.EnvironmentMaps.Remove(existing);
         context.SaveChanges();
-        Changed?.Invoke();
+        Changed?.Invoke(deviceId);
     }
 
     private void DeleteFile(string storedFileName)

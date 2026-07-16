@@ -1,4 +1,5 @@
 @page "/settings"
+@page "/settings/d/{DeviceKey}"
 @rendermode InteractiveServer
 @using BlazorThreeJS.Maths
 @using PortfolioApp.Models
@@ -7,22 +8,25 @@
 @inject UnitStore Store
 @inject WatermarkStore WatermarkStore
 @inject ModelFileStore ModelFileStore
-@inject AppSettingsStore AppSettingsStore
+@inject DeviceStore DeviceStore
 @inject EnvironmentMapStore EnvironmentMapStore
 @inject PdfFileStore PdfFileStore
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 
 <PageTitle>Settings</PageTitle>
 
 <div class="settings-shell">
     <div class="settings-header">
         <h1>Add / Remove Model Units</h1>
-        <a class="icon-btn icon-btn-primary" href="/" data-enhance-nav="false" title="Back to viewer" aria-label="Back to viewer">
+        <a class="icon-btn icon-btn-primary" href="@_viewerUrl" data-enhance-nav="false" title="Back to viewer" aria-label="Back to viewer">
             <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
                 <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8" />
             </svg>
         </a>
     </div>
+
+    <p class="units-hint">Shared across every display - editing a unit here changes it everywhere it's selected.</p>
 
     <div class="table-toolbar">
         <button class="icon-btn icon-btn-add" title="Add unit" aria-label="Add unit" @onclick="StartAdd">
@@ -36,7 +40,6 @@
         <table class="table">
             <thead>
                 <tr>
-                    <th>On screen</th>
                     <th>Name</th>
                     <th>Model file</th>
                     <th>Zones</th>
@@ -51,9 +54,6 @@
                 @foreach (var unit in Store.GetAll())
                 {
                     <tr>
-                        <td>
-                            <input type="checkbox" checked="@unit.IsActive" @onchange="() => Store.SetActive(unit.Id)" />
-                        </td>
                         <td>@unit.Name</td>
                         <td>@(string.IsNullOrWhiteSpace(unit.ModelUrl) ? "-" : unit.ModelFileName ?? "model.glb")</td>
                         <td>@unit.Zones</td>
@@ -176,6 +176,73 @@
         </EditForm>
     }
 
+    <div class="device-section">
+        <h1>Displays</h1>
+        <p class="units-hint">
+            Each display is fully independent - its on-screen unit, background color, watermark,
+            and HDRI only affect that one screen.
+        </p>
+
+        <div class="device-picker">
+            <select class="form-select device-select" @onchange="OnDeviceSwitch">
+                @foreach (var d in _devices)
+                {
+                    <option value="@d.Key" selected="@(d.Id == _device.Id)">@d.DisplayName (@d.Key)</option>
+                }
+            </select>
+            <button type="button" class="icon-btn icon-btn-add" title="Add display" aria-label="Add display" @onclick="() => _addingDevice = !_addingDevice">
+                <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2" />
+                </svg>
+            </button>
+            @if (_device.Key != "default")
+            {
+                <button type="button" class="icon-btn icon-btn-danger" title="Delete this display" aria-label="Delete this display" @onclick="DeleteCurrentDevice">
+                    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                        <path d="M5.5 5.5a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm2.5 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0zm3 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0z" />
+                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z" />
+                    </svg>
+                </button>
+            }
+        </div>
+
+        @if (_addingDevice)
+        {
+            <div class="add-device-form">
+                <div class="mb-2">
+                    <label for="new-device-key">URL key (e.g. "lobby-1")</label>
+                    <input id="new-device-key" class="form-control" @bind="_newDeviceKey" />
+                </div>
+                <div class="mb-2">
+                    <label for="new-device-name">Display name</label>
+                    <input id="new-device-name" class="form-control" @bind="_newDeviceName" />
+                </div>
+                @if (_addDeviceError is not null)
+                {
+                    <p class="text-danger">@_addDeviceError</p>
+                }
+                <button type="button" class="btn btn-success" @onclick="CreateDevice">Create</button>
+                <button type="button" class="btn btn-secondary" @onclick="() => _addingDevice = false">Cancel</button>
+            </div>
+        }
+
+        <div class="mb-2 device-rename">
+            <label for="device-name">Display name</label>
+            <input id="device-name" class="form-control" value="@_device.DisplayName" @onchange="OnRenameDevice" />
+        </div>
+    </div>
+
+    <div class="watermark-section">
+        <h1>Now Showing</h1>
+        <select class="form-select active-unit-select" @onchange="OnActiveUnitChanged">
+            <option value="" selected="@(_device.ActiveUnitId is null)">None</option>
+            @foreach (var unit in Store.GetAll())
+            {
+                <option value="@unit.Id" selected="@(_device.ActiveUnitId == unit.Id)">@unit.Name</option>
+            }
+        </select>
+    </div>
+
     <div class="watermark-section">
         <h1>Background Watermark</h1>
 
@@ -223,8 +290,8 @@
     <div class="watermark-section">
         <h1>Background Color</h1>
         <label class="background-color-picker">
-            <input type="color" @ref="_colorPickerElement" value="@_appSettings.BackgroundColor" @oninput="OnBackgroundColorChanged" />
-            <span>@_appSettings.BackgroundColor</span>
+            <input type="color" @ref="_colorPickerElement" value="@_device.BackgroundColor" @oninput="OnBackgroundColorChanged" />
+            <span>@_device.BackgroundColor</span>
         </label>
     </div>
 
@@ -276,6 +343,18 @@
 </div>
 
 @code {
+    [Parameter]
+    public string? DeviceKey { get; set; }
+
+    private Device _device = null!;
+    private IReadOnlyList<Device> _devices = Array.Empty<Device>();
+    private string _viewerUrl = "/";
+
+    private bool _addingDevice;
+    private string _newDeviceKey = "";
+    private string _newDeviceName = "";
+    private string? _addDeviceError;
+
     private Unit? _editing;
     private bool _isNew;
 
@@ -291,7 +370,6 @@
     private Watermark? _watermark;
     private string? _watermarkError;
 
-    private AppSettings _appSettings = new();
     private ElementReference _colorPickerElement;
     private DotNetObjectReference<Settings>? _colorPickerDotNetRef;
 
@@ -300,22 +378,102 @@
 
     protected override void OnInitialized()
     {
+        _device = DeviceStore.GetOrCreateByKey(DeviceKey ?? "default");
+        _devices = DeviceStore.GetAll();
+        _viewerUrl = DeviceKey is null ? "/" : $"/d/{DeviceKey}";
+
         Store.Changed += OnUnitsChanged;
         WatermarkStore.Changed += OnWatermarkStoreChanged;
-        _watermark = WatermarkStore.Get();
+        _watermark = WatermarkStore.Get(_device.Id);
 
-        AppSettingsStore.Changed += OnAppSettingsChanged;
-        _appSettings = AppSettingsStore.Get();
+        DeviceStore.Changed += OnDeviceStoreChanged;
 
         EnvironmentMapStore.Changed += OnEnvironmentMapStoreChanged;
-        _environmentMap = EnvironmentMapStore.Get();
+        _environmentMap = EnvironmentMapStore.Get(_device.Id);
     }
 
-    private void OnEnvironmentMapStoreChanged()
+    private void OnDeviceSwitch(ChangeEventArgs e)
     {
+        var key = (string)e.Value!;
+        Nav.NavigateTo(key == "default" ? "/settings" : $"/settings/d/{key}", forceLoad: true);
+    }
+
+    private void CreateDevice()
+    {
+        _addDeviceError = null;
+        var key = _newDeviceKey.Trim().ToLowerInvariant().Replace(' ', '-');
+        if (string.IsNullOrEmpty(key))
+        {
+            _addDeviceError = "Enter a URL key for the new display.";
+            return;
+        }
+
+        if (_devices.Any(d => d.Key == key))
+        {
+            _addDeviceError = "A display with that key already exists.";
+            return;
+        }
+
+        var device = DeviceStore.GetOrCreateByKey(key);
+        if (!string.IsNullOrWhiteSpace(_newDeviceName))
+        {
+            DeviceStore.Rename(device.Id, _newDeviceName.Trim());
+        }
+
+        Nav.NavigateTo($"/settings/d/{key}", forceLoad: true);
+    }
+
+    private void DeleteCurrentDevice()
+    {
+        var deviceId = _device.Id;
+        if (DeviceStore.Delete(deviceId))
+        {
+            // Watermark/EnvironmentMap rows aren't cascade-deleted at the DB level (DeviceId is a
+            // plain column, not an EF-configured FK), so they'd otherwise be orphaned along with
+            // their physical files.
+            WatermarkStore.Delete(deviceId);
+            EnvironmentMapStore.Delete(deviceId);
+            Nav.NavigateTo("/settings", forceLoad: true);
+        }
+    }
+
+    private void OnRenameDevice(ChangeEventArgs e)
+    {
+        DeviceStore.Rename(_device.Id, (string)e.Value!);
+    }
+
+    private void OnActiveUnitChanged(ChangeEventArgs e)
+    {
+        var value = (string?)e.Value;
+        int? unitId = string.IsNullOrEmpty(value) ? null : int.Parse(value);
+        DeviceStore.SetActiveUnit(_device.Id, unitId);
+    }
+
+    private void OnDeviceStoreChanged(int deviceId)
+    {
+        if (deviceId != _device.Id)
+        {
+            return;
+        }
+
         InvokeAsync(() =>
         {
-            _environmentMap = EnvironmentMapStore.Get();
+            _device = DeviceStore.GetById(_device.Id) ?? _device;
+            _devices = DeviceStore.GetAll();
+            StateHasChanged();
+        });
+    }
+
+    private void OnEnvironmentMapStoreChanged(int deviceId)
+    {
+        if (deviceId != _device.Id)
+        {
+            return;
+        }
+
+        InvokeAsync(() =>
+        {
+            _environmentMap = EnvironmentMapStore.Get(_device.Id);
             StateHasChanged();
         });
     }
@@ -343,7 +501,7 @@
         try
         {
             await using var stream = file.OpenReadStream(MaxEnvironmentMapFileSize);
-            await EnvironmentMapStore.SetAsync(file.Name, stream);
+            await EnvironmentMapStore.SetAsync(_device.Id, file.Name, stream);
         }
         catch (Exception ex)
         {
@@ -354,21 +512,12 @@
     private void DeleteEnvironmentMap()
     {
         _environmentMapError = null;
-        EnvironmentMapStore.Delete();
-    }
-
-    private void OnAppSettingsChanged()
-    {
-        InvokeAsync(() =>
-        {
-            _appSettings = AppSettingsStore.Get();
-            StateHasChanged();
-        });
+        EnvironmentMapStore.Delete(_device.Id);
     }
 
     private void OnBackgroundColorChanged(ChangeEventArgs e)
     {
-        AppSettingsStore.SetBackgroundColor((string)e.Value!);
+        DeviceStore.SetBackgroundColor(_device.Id, (string)e.Value!);
     }
 
     // Belt-and-suspenders alongside @oninput above: some mobile/tablet browsers' native
@@ -378,7 +527,7 @@
     [JSInvokable]
     public void OnColorPickerChanged(string color)
     {
-        AppSettingsStore.SetBackgroundColor(color);
+        DeviceStore.SetBackgroundColor(_device.Id, color);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -392,11 +541,16 @@
 
     private void OnUnitsChanged() => InvokeAsync(StateHasChanged);
 
-    private void OnWatermarkStoreChanged()
+    private void OnWatermarkStoreChanged(int deviceId)
     {
+        if (deviceId != _device.Id)
+        {
+            return;
+        }
+
         InvokeAsync(() =>
         {
-            _watermark = WatermarkStore.Get();
+            _watermark = WatermarkStore.Get(_device.Id);
             StateHasChanged();
         });
     }
@@ -424,7 +578,7 @@
         try
         {
             await using var stream = file.OpenReadStream(MaxWatermarkFileSize);
-            await WatermarkStore.SetAsync(file.Name, stream);
+            await WatermarkStore.SetAsync(_device.Id, file.Name, stream);
         }
         catch (Exception ex)
         {
@@ -435,12 +589,12 @@
     private void DeleteWatermark()
     {
         _watermarkError = null;
-        WatermarkStore.Delete();
+        WatermarkStore.Delete(_device.Id);
     }
 
     private void OnGrayscaleToggled(ChangeEventArgs e)
     {
-        WatermarkStore.SetGrayscale((bool)e.Value!);
+        WatermarkStore.SetGrayscale(_device.Id, (bool)e.Value!);
     }
 
     private const long MaxModelFileSize = 50 * 1024 * 1024;
@@ -643,7 +797,7 @@
     {
         Store.Changed -= OnUnitsChanged;
         WatermarkStore.Changed -= OnWatermarkStoreChanged;
-        AppSettingsStore.Changed -= OnAppSettingsChanged;
+        DeviceStore.Changed -= OnDeviceStoreChanged;
         EnvironmentMapStore.Changed -= OnEnvironmentMapStoreChanged;
         _colorPickerDotNetRef?.Dispose();
     }

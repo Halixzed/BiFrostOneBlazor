@@ -3,6 +3,12 @@ namespace PortfolioApp.Models;
 public class Watermark
 {
     public int Id { get; set; }
+
+    /// <summary>
+    /// The device this watermark belongs to - each device has at most one.
+    /// </summary>
+    public int DeviceId { get; set; }
+
     public required string OriginalFileName { get; set; }
 
     /// <summary>

@@ -7,8 +7,8 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
 {
     public DbSet<Unit> Units => Set<Unit>();
     public DbSet<Watermark> Watermarks => Set<Watermark>();
-    public DbSet<AppSettings> AppSettings => Set<AppSettings>();
     public DbSet<EnvironmentMap> EnvironmentMaps => Set<EnvironmentMap>();
+    public DbSet<Device> Devices => Set<Device>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

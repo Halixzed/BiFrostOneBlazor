@@ -19,6 +19,45 @@
     margin-bottom: 0.5rem;
 }
 
+.units-hint {
+    margin: 0 0 1rem;
+    font-size: 0.85rem;
+    opacity: 0.65;
+}
+
+.device-section {
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.device-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.device-select,
+.active-unit-select {
+    max-width: 420px;
+    width: 100%;
+}
+
+.add-device-form {
+    max-width: 420px;
+    width: 100%;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 0.5rem;
+}
+
+.device-rename {
+    max-width: 420px;
+    width: 100%;
+}
+
 /* Bootstrap utility class - lets the table scroll horizontally within its own box instead of
    overflowing the page when there isn't room for all 9 columns (tablet portrait and narrower). */
 .table-responsive {

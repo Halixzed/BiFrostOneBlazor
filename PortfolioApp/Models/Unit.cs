@@ -16,11 +16,6 @@ public class Unit
     public int WarrantyYears { get; set; }
 
     /// <summary>
-    /// Only one unit at a time is shown on the main viewer; toggling one active clears the rest.
-    /// </summary>
-    public bool IsActive { get; set; }
-
-    /// <summary>
     /// Path to the uploaded .gltf/.glb model, served via the /model-file/{fileName} endpoint.
     /// Units without one render nothing in the viewer.
     /// </summary>

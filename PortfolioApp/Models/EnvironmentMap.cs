@@ -1,12 +1,16 @@
 namespace PortfolioApp.Models;
 
 /// <summary>
-/// Singleton uploaded equirectangular image used as the 3D scene's image-based lighting
-/// environment, replacing the built-in studio light rig when present.
+/// Uploaded equirectangular image used as a device's 3D scene image-based lighting environment,
+/// added on top of (not replacing) the built-in studio light rig when present. Each device has
+/// at most one.
 /// </summary>
 public class EnvironmentMap
 {
     public int Id { get; set; }
+
+    public int DeviceId { get; set; }
+
     public required string OriginalFileName { get; set; }
 
     /// <summary>

@@ -8,7 +8,7 @@ COPY PortfolioApp/PortfolioApp.csproj PortfolioApp/
 RUN dotnet restore PortfolioApp/PortfolioApp.csproj
 
 COPY PortfolioApp/ PortfolioApp/
-RUN dotnet publish PortfolioApp/PortfolioApp.csproj -c Release -o /app/publish --no-restore
+RUN dotnet publish PortfolioApp/PortfolioApp.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app

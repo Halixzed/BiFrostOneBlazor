@@ -10,6 +10,7 @@
 @inject AppSettingsStore AppSettingsStore
 @inject EnvironmentMapStore EnvironmentMapStore
 @inject PdfFileStore PdfFileStore
+@inject IJSRuntime JS
 
 <PageTitle>Settings</PageTitle>
 
@@ -222,7 +223,7 @@
     <div class="watermark-section">
         <h1>Background Color</h1>
         <label class="background-color-picker">
-            <input type="color" value="@_appSettings.BackgroundColor" @oninput="OnBackgroundColorChanged" />
+            <input type="color" @ref="_colorPickerElement" value="@_appSettings.BackgroundColor" @oninput="OnBackgroundColorChanged" />
             <span>@_appSettings.BackgroundColor</span>
         </label>
     </div>
@@ -291,6 +292,8 @@
     private string? _watermarkError;
 
     private AppSettings _appSettings = new();
+    private ElementReference _colorPickerElement;
+    private DotNetObjectReference<Settings>? _colorPickerDotNetRef;
 
     private EnvironmentMap? _environmentMap;
     private string? _environmentMapError;
@@ -366,6 +369,25 @@
     private void OnBackgroundColorChanged(ChangeEventArgs e)
     {
         AppSettingsStore.SetBackgroundColor((string)e.Value!);
+    }
+
+    // Belt-and-suspenders alongside @oninput above: some mobile/tablet browsers' native
+    // color-picker sheets don't reliably fire input/change events through Blazor Server's
+    // delegated event listener at all (the swatch updates, nothing reaches the server) - this
+    // native JS listener (color-picker-interop.js) attaches directly to the element instead.
+    [JSInvokable]
+    public void OnColorPickerChanged(string color)
+    {
+        AppSettingsStore.SetBackgroundColor(color);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _colorPickerDotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("portfolioWireColorPicker", _colorPickerElement, _colorPickerDotNetRef);
+        }
     }
 
     private void OnUnitsChanged() => InvokeAsync(StateHasChanged);
@@ -623,5 +645,6 @@
         WatermarkStore.Changed -= OnWatermarkStoreChanged;
         AppSettingsStore.Changed -= OnAppSettingsChanged;
         EnvironmentMapStore.Changed -= OnEnvironmentMapStoreChanged;
+        _colorPickerDotNetRef?.Dispose();
     }
 }

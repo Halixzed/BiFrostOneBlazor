@@ -17,4 +17,132 @@
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
   </ItemGroup>
 
+  <!--
+    BlazorThreeJS's Viewer component loads its own bundled "_content/BlazorThreeJS/dist/app-lib.js"
+    via a Blazor Server JS-interop call, which Blazor's own client runtime (blazor.web.js) fetches
+    with a Subresource Integrity check. The integrity hash comes from THIS project's own build-time
+    static web assets manifest, computed from the ORIGINAL package file - but Program.cs serves a
+    locally patched copy of that same file at runtime (see the app-lib.js interception middleware),
+    so the hash never matches and the browser silently blocks the script (breaking the whole 3D
+    viewer) once static assets actually work correctly (see the migration/publish fixes earlier).
+    This target overwrites the published app-lib.js with our patched copy and fixes up the manifest
+    to match, so the built-in integrity check is checking the file that's actually served. Uses an
+    inline Roslyn task instead of an external script since only the .NET SDK itself is guaranteed to
+    be present in the Docker build stage.
+  -->
+  <UsingTask TaskName="PatchBlazorThreeJsAsset" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <PublishDir ParameterType="System.String" Required="true" />
+      <PatchedFile ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.Collections.Generic" />
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Linq" />
+      <Using Namespace="System.Security.Cryptography" />
+      <Code Type="Fragment" Language="cs">
+<![CDATA[
+using var sha256 = SHA256.Create();
+
+var targetFile = Path.Combine(PublishDir, "wwwroot", "_content", "BlazorThreeJS", "dist", "app-lib.js");
+var originalBytes = File.ReadAllBytes(targetFile);
+var originalLength = originalBytes.Length;
+var originalHash = Convert.ToBase64String(sha256.ComputeHash(originalBytes));
+
+var patchedBytes = File.ReadAllBytes(PatchedFile);
+var patchedHash = Convert.ToBase64String(sha256.ComputeHash(patchedBytes));
+
+File.WriteAllBytes(targetFile, patchedBytes);
+
+// The precompressed variants are now stale (they compress the ORIGINAL file) - remove them so
+// the browser falls back to requesting the plain file below instead of a mismatched one.
+foreach (var suffix in new[] { ".br", ".gz" })
+{
+    var stale = targetFile + suffix;
+    if (File.Exists(stale)) File.Delete(stale);
+}
+
+var manifestPath = Directory.GetFiles(PublishDir, "*.staticwebassets.endpoints.json").FirstOrDefault();
+if (manifestPath != null)
+{
+    var manifest = File.ReadAllText(manifestPath);
+
+    // Remove every now-stale precompressed endpoint entry entirely (there are two per suffix: one
+    // whose Route is the base "app-lib.js" name selecting this AssetFile by content-encoding, and
+    // one whose Route is the AssetFile's own ".br"/".gz" name directly) - brace-depth scan, not a
+    // full JSON parser, safe here since this file's string values never contain literal braces.
+    // The manifest is minified (no whitespace around ':'/','), matching this project's actual output.
+    foreach (var marker in new[]
+    {
+        "\"AssetFile\":\"_content/BlazorThreeJS/dist/app-lib.js.br\"",
+        "\"AssetFile\":\"_content/BlazorThreeJS/dist/app-lib.js.gz\""
+    })
+    {
+        int markerIndex;
+        while ((markerIndex = manifest.IndexOf(marker, StringComparison.Ordinal)) >= 0)
+        {
+            var objectStart = markerIndex;
+            var depth = 0;
+            for (; objectStart >= 0; objectStart--)
+            {
+                if (manifest[objectStart] == '}') depth++;
+                else if (manifest[objectStart] == '{')
+                {
+                    if (depth == 0) break;
+                    depth--;
+                }
+            }
+
+            var objectEnd = objectStart;
+            depth = 0;
+            for (; objectEnd < manifest.Length; objectEnd++)
+            {
+                if (manifest[objectEnd] == '{') depth++;
+                else if (manifest[objectEnd] == '}')
+                {
+                    depth--;
+                    if (depth == 0) break;
+                }
+            }
+
+            // Consume one trailing (or, if none, one leading) comma so the array stays valid JSON.
+            var removeStart = objectStart;
+            var removeEnd = objectEnd + 1;
+            var afterEnd = removeEnd;
+            while (afterEnd < manifest.Length && char.IsWhiteSpace(manifest[afterEnd])) afterEnd++;
+            if (afterEnd < manifest.Length && manifest[afterEnd] == ',')
+            {
+                removeEnd = afterEnd + 1;
+            }
+            else
+            {
+                var beforeStart = removeStart;
+                while (beforeStart > 0 && char.IsWhiteSpace(manifest[beforeStart - 1])) beforeStart--;
+                if (beforeStart > 0 && manifest[beforeStart - 1] == ',') removeStart = beforeStart - 1;
+            }
+
+            manifest = manifest.Remove(removeStart, removeEnd - removeStart);
+        }
+    }
+
+    // The remaining (uncompressed) entry's integrity/ETag/Content-Length still reference the
+    // original file - the hash strings are unique enough in this generated file to replace globally.
+    manifest = manifest.Replace("sha256-" + originalHash, "sha256-" + patchedHash);
+    manifest = manifest.Replace("\"" + originalHash + "\"", "\"" + patchedHash + "\"");
+    manifest = manifest.Replace(
+        "\"Name\":\"Content-Length\",\"Value\":\"" + originalLength.ToString() + "\"",
+        "\"Name\":\"Content-Length\",\"Value\":\"" + patchedBytes.Length.ToString() + "\"");
+
+    File.WriteAllText(manifestPath, manifest);
+}
+]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="PatchBlazorThreeJsIntegrity" AfterTargets="Publish">
+    <PatchBlazorThreeJsAsset PublishDir="$(PublishDir)" PatchedFile="$(MSBuildProjectDirectory)\wwwroot\lib\blazor-three-js\app-lib.js" />
+  </Target>
+
 </Project>

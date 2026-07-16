@@ -147,6 +147,16 @@ app.Use(async (context, next) =>
 //     entirely - setting material.transmission has no visual effect at all in this build, glass
 //     materials silently render as flat opaque PBR surfaces. This alpha-transparency conversion is
 //     a simulated look (translucent, no refraction), not a fix for the underlying gap.
+//
+// This middleware alone is only enough in Development: BlazorThreeJS's Viewer component loads the
+// bundle via a Blazor Server JS-interop call, which the client runtime fetches with a Subresource
+// Integrity check computed from THIS project's own build-time static web assets manifest - and
+// that manifest is generated from the ORIGINAL (unpatched) package file, since the build has no
+// idea this middleware exists. In Production that mismatch makes the browser silently block the
+// script (breaking the whole viewer with no server-side error). PortfolioApp.csproj's
+// PatchBlazorThreeJsIntegrity MSBuild target fixes this by overwriting the published app-lib.js
+// and its manifest entry with this same patched content after every `dotnet publish`, so Production
+// serves consistent bytes end-to-end - see that target's comment for details.
 app.Use(async (context, next) =>
 {
     if (context.Request.Path == "/_content/BlazorThreeJS/dist/app-lib.js")

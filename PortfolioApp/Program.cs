@@ -22,6 +22,17 @@ builder.Services.AddSingleton<PdfFileStore>();
 
 var app = builder.Build();
 
+// TEMPORARY DIAGNOSTIC - remove once the /_framework 404 on Railway is understood.
+{
+    var frameworkDir = Path.Combine(app.Environment.WebRootPath, "_framework");
+    var manifestPath = Path.Combine(AppContext.BaseDirectory, "PortfolioApp.staticwebassets.endpoints.json");
+    app.Logger.LogWarning("DIAG WebRootPath={WebRootPath}", app.Environment.WebRootPath);
+    app.Logger.LogWarning("DIAG _framework dir exists={Exists}, files={Files}",
+        Directory.Exists(frameworkDir),
+        Directory.Exists(frameworkDir) ? string.Join(",", Directory.GetFiles(frameworkDir).Select(Path.GetFileName)) : "(n/a)");
+    app.Logger.LogWarning("DIAG manifest path={ManifestPath} exists={Exists}", manifestPath, File.Exists(manifestPath));
+}
+
 // Migrate the database once at startup, before any singleton store can query it - relying on
 // whichever store's constructor happens to run first (as UnitStore used to do) is a race that
 // only surfaces on a brand-new/empty database (e.g. a freshly attached Railway volume).
